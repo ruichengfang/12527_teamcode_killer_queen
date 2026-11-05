@@ -158,9 +158,9 @@ public class MecanumDrive extends LinearOpMode {
 
 //========================= intake =============================
 
-//            if (gamepad1.right_trigger > 0.1)      intake.intake();
-//            else if (gamepad1.left_trigger > 0.1)  intake.outtake();
-//            else intake.constant();
+            if (gamepad1.right_trigger > 0.1)      intake.intake();
+            else if (gamepad1.left_trigger > 0.1)  intake.outtake();
+            else intake.constant();
 
 //========================= servo ==============================
 
