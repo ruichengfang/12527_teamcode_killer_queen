@@ -21,12 +21,12 @@ public class inTake {
     // 对外只暴露"意图"，隐藏实现
     public void intake()  {
         intakeMotor.setPower(1.0);
-        transitMotor.setPower(1.0);
+        transitMotor.setPower(-1.0);
     }
 
     public void outtake() {
         intakeMotor.setPower(-1.0);
-        transitMotor.setPower(-1.0);
+        transitMotor.setPower(1.0);
     }
 
     public void constant() {

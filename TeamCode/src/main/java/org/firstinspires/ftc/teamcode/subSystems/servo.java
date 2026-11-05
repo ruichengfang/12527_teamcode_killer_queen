@@ -1,21 +1,19 @@
 package org.firstinspires.ftc.teamcode.subSystems;
 
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 public class servo {
 
-    // 硬件配置名称
+    // 硬件配置名称（角度来源：od = Pinpoint 定位，不再使用 IMU）
     private static final String SERVO_LEFT_NAME = NameConstants.SERVO_LEFT;
     private static final String SERVO_RIGHT_NAME = NameConstants.SERVO_RIGHT;
-    private static final String IMU_NAME = NameConstants.IMU;
+    private static final String OD_NAME = NameConstants.OD;
 
     // 300°舵机参数
     private static final double SERVO_TRAVEL_DEG = 300.0;
@@ -24,18 +22,23 @@ public class servo {
     // 如果自动补偿方向相反，将1.0改成-1.0
     private static final double SERVO_DIRECTION = 1.0;
 
-    private IMU imu;
+    private GoBildaPinpointDriver pinpoint;
+
+    // start() 时记录的初始朝向（度），用于计算相对转角
+    private double headingOffsetDeg = 0;
 
     // 使用完整类名，避免与当前servo类混淆
     private com.qualcomm.robotcore.hardware.Servo servoL;
     private com.qualcomm.robotcore.hardware.Servo servoR;
 
     /**
-     * 初始化两个舵机和Control Hub内置IMU。
+     * 初始化两个舵机和 Pinpoint。
+     * 注意：这里只读取 od 轮反馈的角度，不会调用 resetPosAndIMU，
+     * 以免清零底盘正在使用的定位数据。
      */
     public servo(HardwareMap hardwareMap) {
 
-        imu = hardwareMap.get(IMU.class, IMU_NAME);
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, OD_NAME);
 
         servoL = hardwareMap.get(
                 com.qualcomm.robotcore.hardware.Servo.class,
@@ -47,22 +50,6 @@ public class servo {
                 SERVO_RIGHT_NAME
         );
 
-        /*
-         * 当前设置适用于：
-         * Control Hub平放；
-         * Logo朝上；
-         * USB接口朝机器人前方。
-         *
-         * 如果Control Hub安装方向不同，需要修改这两个方向。
-         */
-        RevHubOrientationOnRobot orientationOnRobot =
-                new RevHubOrientationOnRobot(
-                        RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
-                        RevHubOrientationOnRobot.UsbFacingDirection.UP
-                );
-
-        imu.initialize(new IMU.Parameters(orientationOnRobot));
-
         // 初始化时，让两个舵机来到150°中位
         setBothPosition(
                 SERVO_CENTER_DEG / SERVO_TRAVEL_DEG
@@ -71,11 +58,12 @@ public class servo {
 
     /**
      * 在waitForStart()之后调用。
-     * 将正式开始时的机器人方向设为初始方向。
+     * 将正式开始时 od 轮反馈的朝向设为初始方向。
      */
     public void start() {
 
-        imu.resetYaw();
+        pinpoint.update();
+        headingOffsetDeg = pinpoint.getHeading(AngleUnit.DEGREES);
 
         setBothPosition(
                 SERVO_CENTER_DEG / SERVO_TRAVEL_DEG
@@ -87,13 +75,14 @@ public class servo {
      *
      * @param toZero 三角键Y：按住时两个舵机转到0
      * @param toOne  圆圈键B：按住时两个舵机转到1
+     * @param rset   回中：两个舵机转到0.5（150°中位）
      *
-     * 没有按下按键时，执行IMU自动反向补偿。
+     * 没有按下按键时，执行 od 角度自动反向补偿。
      * 如果两个按键同时按下，toZero优先。
      */
     public void update(boolean toZero, boolean toOne, boolean rset) {
 
-        // 手动控制优先于IMU自动控制
+        // 手动控制优先于自动控制
         if (toZero) {
             setBothPosition(0.0);
             return;
@@ -109,12 +98,11 @@ public class servo {
             return;
         }
 
-        // 读取机器人相对初始方向的Yaw角
-        YawPitchRollAngles orientation =
-                imu.getRobotYawPitchRollAngles();
-
-        double robotYawDeg =
-                orientation.getYaw(AngleUnit.DEGREES);
+        // 读取 od 轮反馈的、相对初始方向的转角
+        pinpoint.update();
+        double robotYawDeg = normalizeAngle(
+                pinpoint.getHeading(AngleUnit.DEGREES) - headingOffsetDeg
+        );
 
         // 舵机向机器人旋转的反方向补偿
         double compensationDeg = -robotYawDeg;
@@ -150,5 +138,12 @@ public class servo {
 
         servoL.setPosition(safePosition);
         servoR.setPosition(safePosition);
+    }
+
+    /** 角度归一化到 [-180, 180]，防止 od 累计圈数导致舵机打满。 */
+    private double normalizeAngle(double angle) {
+        while (angle > 180)   angle -= 360;
+        while (angle <= -180) angle += 360;
+        return angle;
     }
 }

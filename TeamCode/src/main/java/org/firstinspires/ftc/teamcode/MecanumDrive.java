@@ -2,11 +2,12 @@ package org.firstinspires.ftc.teamcode;
 
 //import org.firstinspires.ftc.teamcode.subSystems.shooter;   // ← 已取消注释
 import org.firstinspires.ftc.teamcode.subSystems.inTake;
-//import org.firstinspires.ftc.teamcode.subSystems.servo;
+import org.firstinspires.ftc.teamcode.subSystems.servo;
 import org.firstinspires.ftc.teamcode.NameConstants;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
@@ -49,7 +50,7 @@ public class MecanumDrive extends LinearOpMode {
     DcMotor leftFrontMotor, rightFrontMotor, leftBackMotor, rightBackMotor;
 //    AutoAim autoAim;
     inTake intake;
-//    servo servo;
+    servo servo;
 //    shooter shooter;   // ← 新增成员声明
 
     @Override
@@ -60,7 +61,7 @@ public class MecanumDrive extends LinearOpMode {
         double headingOffset = 0;//按三角键时记录当前角度
 
         intake = new inTake(hardwareMap);//intake初始化
-//        servo = new servo(hardwareMap);//servo初始化
+        servo = new servo(hardwareMap);//servo初始化
 //        shooter = new shooter(hardwareMap);
 
         //pinpoint 初始化
@@ -94,7 +95,7 @@ public class MecanumDrive extends LinearOpMode {
         waitForStart();
 
         // 将开始时的机器人方向设为舵机保持的初始方向
-//        servo.start();
+        servo.start();
 
         while (opModeIsActive()) {
 //--------------------------底盘------------------------------------
@@ -158,13 +159,13 @@ public class MecanumDrive extends LinearOpMode {
 
 //========================= intake =============================
 
-            if (gamepad1.right_trigger > 0.1)      intake.intake();
-            else if (gamepad1.left_trigger > 0.1)  intake.outtake();
+            if (gamepad1.right_trigger > 0.5)      intake.intake();
+            else if (gamepad1.left_trigger > 0.5)  intake.outtake();
             else intake.constant();
 
 //========================= servo ==============================
 
-//            servo.update(gamepad1.y, gamepad1.b, false);
+            servo.update(gamepad1.y, gamepad1.b, false);
 
 //========================= shooter =============================
 
