@@ -40,7 +40,7 @@ public class MecanumDrive extends LinearOpMode {
     /**
      * 常数部分-整形系数/参数
      */
-    double odErrorX = 91.0, odErrorY = 78.0;
+    double odErrorX = 20.1, odErrorY = -131.12;
 
     double x2Factor = 1.1;
 
