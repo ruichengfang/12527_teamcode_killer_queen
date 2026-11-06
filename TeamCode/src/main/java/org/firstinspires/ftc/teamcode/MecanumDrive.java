@@ -13,12 +13,13 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
 //声明向量结构r
 class Vec{
     double dir,size;
 };
-//1
+
 @TeleOp(name = "Mecanum Drive", group = "Drive")
 public class MecanumDrive extends LinearOpMode {
 
@@ -44,11 +45,13 @@ public class MecanumDrive extends LinearOpMode {
 
     double x2Factor = 1.1;
 
+    // 起始点场地坐标（英寸 / 度），用于云台解算场地中心方向，按实际摆放修改
+    double startX = 58.5332, startY = 133.3355, startHeadingDeg = 270;
+
     /**
      * 设备初始化声明
      */
     DcMotor leftFrontMotor, rightFrontMotor, leftBackMotor, rightBackMotor;
-//    AutoAim autoAim;
     inTake intake;
     servo servo;
 //    shooter shooter;   // ← 新增成员声明
@@ -61,7 +64,7 @@ public class MecanumDrive extends LinearOpMode {
         double headingOffset = 0;//按三角键时记录当前角度
 
         intake = new inTake(hardwareMap);//intake初始化
-        servo = new servo(hardwareMap);//servo初始化
+        servo = new servo(hardwareMap);//servo初始化（云台锁定初始场地角度）
 //        shooter = new shooter(hardwareMap);
 
         //pinpoint 初始化
@@ -72,6 +75,11 @@ public class MecanumDrive extends LinearOpMode {
         org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit distanceUnit;
         pinpoint.setOffsets(odErrorX, odErrorY, DistanceUnit.MM);  // 示例值，必须改成你的实际值
         pinpoint.resetPosAndIMU();
+        pinpoint.update();
+
+        // 把 od 坐标设为实际起始点，云台才能正确解算场地中心方向
+        pinpoint.setPosition(new Pose2D(
+                DistanceUnit.INCH, startX, startY, AngleUnit.DEGREES, startHeadingDeg));
         pinpoint.update();
 
         //end of 初始化
@@ -87,14 +95,12 @@ public class MecanumDrive extends LinearOpMode {
         leftFrontMotor.setDirection(DcMotor.Direction.REVERSE);
         leftBackMotor.setDirection(DcMotor.Direction.REVERSE);
 
-//        autoAim = new AutoAim();
-
         telemetry.addLine("Ready.");
         telemetry.update();
 
         waitForStart();
 
-        // 将开始时的机器人方向设为舵机保持的初始方向
+        // 将开始时的场地朝向设为云台锁定方向
         servo.start();
 
         while (opModeIsActive()) {
@@ -121,13 +127,7 @@ public class MecanumDrive extends LinearOpMode {
             vec2.dir = vec1.dir - heading;
             vec2.size = vec1.size;
 
-            /**
-             * 自瞄：按下R2返回场地方向（0度）
-             */
-
-//            if (gamepad1.right_bumper) {
-//                rx = autoAim.update(0, heading, servo);
-//            }else
+            // 底盘自瞄与动态调参已移除，旋转完全由右摇杆手动控制
             rx = gamepad1.right_stick_x;
 
             telemetry.addData("heading deg", "%.1f", Math.toDegrees(heading));
@@ -159,11 +159,11 @@ public class MecanumDrive extends LinearOpMode {
 
 //========================= intake =============================
 
-            if (gamepad1.right_trigger > 0.5)      intake.intake();
-            else if (gamepad1.left_trigger > 0.5)  intake.outtake();
-            else intake.constant();
+//            if (gamepad1.right_trigger > 0.5)      intake.intake();
+//            else if (gamepad1.left_trigger > 0.5)  intake.outtake();
+//            else intake.constant();
 
-//========================= servo ==============================
+//========================= servo（云台锁定场地角度，od 补偿 + 传动比 0.98） ==============================
 
             servo.update(gamepad1.y, gamepad1.b, false);
 
@@ -181,7 +181,7 @@ public class MecanumDrive extends LinearOpMode {
 //            telemetry.addData("shooter功率01", "%.3f", shooter.getPower01());
 //            telemetry.addData("shooter功率2", "%.3f", shooter.getPower2());
 //            telemetry.addData("shooter功率3", "%.3f", shooter.getPower3());
-
+            telemetry.addData("rx", "%.3f", rx);
 
             telemetry.update();
 

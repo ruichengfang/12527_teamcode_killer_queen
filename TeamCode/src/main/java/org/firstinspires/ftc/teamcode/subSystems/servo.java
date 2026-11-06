@@ -22,6 +22,10 @@ public class servo {
     // 如果自动补偿方向相反，将1.0改成-1.0
     private static final double SERVO_DIRECTION = 1.0;
 
+    // 同步带传动比：147:150 = 0.98（舵机转角 × 0.98 = 云台实际转角）
+    // 因此补偿时舵机需要多转一点：补偿角 ÷ 0.98
+    private static final double GEAR_RATIO = 147.0 / 150.0;
+
     private GoBildaPinpointDriver pinpoint;
 
     // start() 时记录的初始朝向（度），用于计算相对转角
@@ -109,7 +113,7 @@ public class servo {
 
         double rawServoTargetDeg =
                 SERVO_CENTER_DEG
-                        + SERVO_DIRECTION * compensationDeg;
+                        + SERVO_DIRECTION * compensationDeg / GEAR_RATIO;
 
         // 限制在300°舵机的机械行程内
         double servoTargetDeg = Range.clip(
