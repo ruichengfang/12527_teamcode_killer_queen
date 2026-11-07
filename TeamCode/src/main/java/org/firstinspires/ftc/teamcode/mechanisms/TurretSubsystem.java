@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subSystems;
+package org.firstinspires.ftc.teamcode.mechanisms;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -8,7 +8,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 import org.firstinspires.ftc.teamcode.NameConstants;
 
-public class servo {
+public class TurretSubsystem {
 
     // 硬件配置名称（角度来源：od = Pinpoint 定位，不再使用 IMU）
     private static final String SERVO_LEFT_NAME = NameConstants.SERVO_LEFT;
@@ -31,7 +31,7 @@ public class servo {
     // start() 时记录的初始朝向（度），用于计算相对转角
     private double headingOffsetDeg = 0;
 
-    // 使用完整类名，避免与当前servo类混淆
+    // 使用 FTC SDK 舵机类型
     private com.qualcomm.robotcore.hardware.Servo servoL;
     private com.qualcomm.robotcore.hardware.Servo servoR;
 
@@ -40,7 +40,7 @@ public class servo {
      * 注意：这里只读取 od 轮反馈的角度，不会调用 resetPosAndIMU，
      * 以免清零底盘正在使用的定位数据。
      */
-    public servo(HardwareMap hardwareMap) {
+    public TurretSubsystem(HardwareMap hardwareMap) {
 
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, OD_NAME);
 
@@ -75,16 +75,16 @@ public class servo {
     }
 
     /**
-     * 在MecanumDrive主循环中反复调用。
+     * 在RobotTeleOp主循环中反复调用。
      *
      * @param toZero 三角键Y：按住时两个舵机转到0
      * @param toOne  圆圈键B：按住时两个舵机转到1
-     * @param rset   回中：两个舵机转到0.5（150°中位）
+     * @param reset   回中：两个舵机转到0.5（150°中位）
      *
      * 没有按下按键时，执行 od 角度自动反向补偿。
      * 如果两个按键同时按下，toZero优先。
      */
-    public void update(boolean toZero, boolean toOne, boolean rset) {
+    public void update(boolean toZero, boolean toOne, boolean reset) {
 
         // 手动控制优先于自动控制
         if (toZero) {
@@ -97,7 +97,7 @@ public class servo {
             return;
         }
 
-        if (rset) {
+        if (reset) {
             setBothPosition(0.5);
             return;
         }

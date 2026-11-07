@@ -1,4 +1,4 @@
-//package org.firstinspires.ftc.teamcode.subSystems;
+//package org.firstinspires.ftc.teamcode.mechanisms;
 //
 //import com.qualcomm.robotcore.hardware.DcMotor;
 //import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -17,7 +17,7 @@
 // * 5. PID 参数 kP / kD / kF：需根据实际飞轮调参
 // * 6. BUMPER_FEED_POWER / TRIGGER_MAX_POWER：按需调整
 // */
-//public class shooter {
+//public class Shooter {
 //
 //    /* ==================== 设备名（和 Configure Robot 里完全一致） ==================== */
 //    private static final String MOTOR_0 = NameConstants.SHOOTER_MOTOR_0;
@@ -56,7 +56,7 @@
 //    private double lastTime = 0;
 //
 //    /* ==================== 初始化 ==================== */
-//    public shooter(HardwareMap hardwareMap) {
+//    public Shooter(HardwareMap hardwareMap) {
 //        motor0 = hardwareMap.get(DcMotorEx.class, MOTOR_0);
 //        motor1 = hardwareMap.get(DcMotorEx.class, MOTOR_1);
 //        motor2 = hardwareMap.get(DcMotorEx.class, MOTOR_2);

@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.commands;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
-import org.firstinspires.ftc.teamcode.subSystems.DriveSubsystem;
+import org.firstinspires.ftc.teamcode.mechanisms.DriveSubsystem;
 
 /** 每个控制周期将手柄输入交给底盘子系统。 */
 public class DriveCommand {

@@ -9,8 +9,8 @@
 //import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 //import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 //import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-//import org.firstinspires.ftc.teamcode.subSystems.inTake;
-//import org.firstinspires.ftc.teamcode.subSystems.shooter;
+//import org.firstinspires.ftc.teamcode.mechanisms.IntakeSubsystem;
+//import org.firstinspires.ftc.teamcode.mechanisms.Shooter;
 //import org.firstinspires.ftc.teamcode.MecanumDrive;
 //
 ///**
@@ -61,8 +61,8 @@
 //    private DcMotor leftFrontMotor, rightFrontMotor, leftBackMotor, rightBackMotor;
 //    private GoBildaPinpointDriver pinpoint;
 //    private AutoAim autoAim;
-//    private shooter shooter;
-//    private inTake intake;
+//    private Shooter shooter;
+//    private IntakeSubsystem intake;
 //
 //    @Override
 //    public void runOpMode() {
@@ -88,8 +88,8 @@
 //
 //        // ---------- 子系统 ----------
 //        autoAim = new AutoAim();
-//        shooter = new shooter(hardwareMap);
-//        intake = new inTake(hardwareMap);
+//        shooter = new Shooter(hardwareMap);
+//        intake = new IntakeSubsystem(hardwareMap);
 //
 //        telemetry.addLine("Ready.");
 //        telemetry.update();
