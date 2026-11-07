@@ -9,8 +9,8 @@
 //import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 //import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 //import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-//import org.firstinspires.ftc.teamcode.mechanisms.IntakeSubsystem;
-//import org.firstinspires.ftc.teamcode.mechanisms.Shooter;
+//import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
+//import org.firstinspires.ftc.teamcode.subsystem.Shooter;
 //import org.firstinspires.ftc.teamcode.MecanumDrive;
 //
 ///**

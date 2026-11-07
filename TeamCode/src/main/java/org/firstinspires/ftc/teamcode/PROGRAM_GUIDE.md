@@ -6,11 +6,11 @@
 | --- | --- | --- |
 | `RobotTeleOp.java` | TeleOp 入口，初始化并运行循环 / TeleOp entry and loop | 启用 / Active |
 | `commands/DriveCommand.java` | 读取 gamepad1，调用底盘 / Reads gamepad1 and calls the drive | 启用 / Active |
-| `mechanisms/DriveSubsystem.java` | Pinpoint、麦轮变换与电机输出 / Pinpoint, mecanum transform and motors | 启用 / Active |
-| `mechanisms/TurretSubsystem.java` | 两个舵机保持启动时的场地方向 / Dual-servo compensation for the starting field heading | 启用 / Active |
-| `mechanisms/IntakeSubsystem.java` | 吸入与输送电机 / Intake and transfer motors | 已初始化，控制未启用 / Initialized, controls inactive |
-| `mechanisms/TurretAim.java` | 基于定位指向场地中心 / Aims toward field center using localization | 未接入 / Not connected |
-| `mechanisms/Shooter.java`, `Blocker.java` | 发射和挡球占位 / Shooter and blocker placeholders | 全部注释 / Commented out |
+| `subsystem/DriveSubsystem.java` | Pinpoint、麦轮变换与电机输出 / Pinpoint, mecanum transform and motors | 启用 / Active |
+| `subsystem/TurretSubsystem.java` | 两个舵机保持启动时的场地方向 / Dual-servo compensation for the starting field heading | 启用 / Active |
+| `subsystem/IntakeSubsystem.java` | 吸入与输送电机 / Intake and transfer motors | 已初始化，控制未启用 / Initialized, controls inactive |
+| `subsystem/TurretAim.java` | 基于定位指向场地中心 / Aims toward field center using localization | 未接入 / Not connected |
+| `subsystem/Shooter.java`, `Blocker.java` | 发射和挡球占位 / Shooter and blocker placeholders | 全部注释 / Commented out |
 | `AutoPath.java` | 自动路线草稿 / Autonomous draft | 全部注释 / Commented out |
 | `NameConstants.java` | 硬件配置名 / Hardware configuration names | 使用中 / In use |
 
@@ -47,7 +47,7 @@ Pinpoint 偏移为 (20.1, -131.12) mm，起点为 (58.5332, 133.3355) 英寸、2
 
 ## 命名 / Naming
 
-Java 包 `subSystems` 改为 `mechanisms`；`servo` → `TurretSubsystem`，`inTake` → `IntakeSubsystem`，`turretAim` → `TurretAim`；已注释的 `shooter`、`blocker` 文件也改为 `Shooter`、`Blocker`。硬件配置字符串没有修改。The Java package and class names were normalized as listed; hardware configuration strings remain unchanged.
+Java 包 `subSystems` 改为 `subsystem`；`servo` → `TurretSubsystem`，`inTake` → `IntakeSubsystem`，`turretAim` → `TurretAim`；已注释的 `shooter`、`blocker` 文件也改为 `Shooter`、`Blocker`。硬件配置字符串没有修改。The Java package and class names were normalized as listed; hardware configuration strings remain unchanged.
 
 ## 待注意 / Notes
 

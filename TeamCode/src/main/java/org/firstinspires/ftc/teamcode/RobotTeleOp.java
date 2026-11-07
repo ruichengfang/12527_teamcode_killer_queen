@@ -3,9 +3,9 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.commands.DriveCommand;
-import org.firstinspires.ftc.teamcode.mechanisms.DriveSubsystem;
-import org.firstinspires.ftc.teamcode.mechanisms.IntakeSubsystem;
-import org.firstinspires.ftc.teamcode.mechanisms.TurretSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
 @TeleOp(name = "Mecanum Drive", group = "Drive")
 public class RobotTeleOp extends LinearOpMode {
