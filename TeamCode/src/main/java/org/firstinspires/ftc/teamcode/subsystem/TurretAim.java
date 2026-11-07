@@ -1,96 +1,99 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
-import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.util.Range;
-
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-
-import org.firstinspires.ftc.teamcode.NameConstants;
-
-/**
- * 云台自瞄：完全基于 od（Pinpoint）定位。
- *
- * 每周期读取车体在场地中的坐标 (x, y) 和朝向 heading，
- * 计算场地中心相对车头的角度，驱动两个 300° 舵机，
- * 使云台始终朝向场地中心 (72, 72)。
- *
- * 坐标约定：英寸，0~144；heading 逆时针为正，0° 朝 +x 方向。
- * 舵机中位 0.5（150°）= 云台朝车头正前方。
- *
- * 注意：主程序必须在 init 时用 pinpoint.setPosition() 设置
- * 真实的起始场地坐标，否则解算出的方向不准。
- */
+/** 双 Hive 自瞄解算：选择瞄点、计算方位角并处理微调与近距离保持。 */
 public class TurretAim {
 
-    private static final String SERVO_LEFT_NAME = NameConstants.SERVO_LEFT;
-    private static final String SERVO_RIGHT_NAME = NameConstants.SERVO_RIGHT;
-    private static final String OD_NAME = NameConstants.OD;
+    private static final double AIM_POINT_X_IN = 60.0; // 两个 Hive 瞄点的 X 坐标
+    private static final double AIM_POINT_Y_HIGH_IN = 84.0; // 高侧 Hive 的 Y 坐标
+    private static final double AIM_POINT_Y_LOW_IN = 60.0; // 低侧 Hive 的 Y 坐标
+    private static final double AIM_SWITCH_Y_IN = 72.0; // 高低瞄点切换基准
+    private static final double AIM_SWITCH_HYST_IN = 1.0; // 切换滞回，防止抖动
+    private static final double AIM_MIN_DIST_IN = 0.5; // 有效瞄准方向的最小距离
 
-    // 场地中心坐标（英寸）
-    private static final double CENTER_X = 72.0;
-    private static final double CENTER_Y = 72.0;
+    private double aimTargetX = AIM_POINT_X_IN;
+    private double aimTargetY = AIM_POINT_Y_LOW_IN;
+    private double aimDistance = 0.0;
+    private double aimTargetDeg = 0.0;
+    private double aimOffsetDeg = 0.0;
 
-    // 300°舵机参数
-    private static final double SERVO_TRAVEL_DEG = 300.0;
-    private static final double SERVO_CENTER_DEG = 150.0;
+    private boolean hasValidAim = false;
+    private double lastValidAimTargetDeg = 0.0;
 
-    // 如果云台转向与预期相反，将 1.0 改成 -1.0
-    private static final double SERVO_DIRECTION = 1.0;
+    /** 每圈更新瞄点和距离；机器人穿过 y=72 时带滞回切换 Hive。 */
+    public void update(double robotX, double robotY) {
+        if (aimTargetY == AIM_POINT_Y_LOW_IN) {
+            if (robotY > AIM_SWITCH_Y_IN + AIM_SWITCH_HYST_IN) {
+                aimTargetY = AIM_POINT_Y_HIGH_IN;
+            }
+        } else if (robotY < AIM_SWITCH_Y_IN - AIM_SWITCH_HYST_IN) {
+            aimTargetY = AIM_POINT_Y_LOW_IN;
+        }
 
-    private final GoBildaPinpointDriver pinpoint;
-    private final com.qualcomm.robotcore.hardware.Servo servoL;
-    private final com.qualcomm.robotcore.hardware.Servo servoR;
-
-    // 遥测用
-    private double targetFieldDeg = 0;
-    private double relativeDeg = 0;
-    private double servoPosition = 0.5;
-
-    public TurretAim(HardwareMap hardwareMap) {
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, OD_NAME);
-        servoL = hardwareMap.get(
-                com.qualcomm.robotcore.hardware.Servo.class, SERVO_LEFT_NAME);
-        servoR = hardwareMap.get(
-                com.qualcomm.robotcore.hardware.Servo.class, SERVO_RIGHT_NAME);
-        setBoth(SERVO_CENTER_DEG / SERVO_TRAVEL_DEG);
+        double dx = aimTargetX - robotX;
+        double dy = aimTargetY - robotY;
+        aimDistance = Math.hypot(dx, dy);
     }
 
-    /** 每周期调用：根据 od 坐标与朝向，让云台指向场地中心。 */
-    public void update() {
-        pinpoint.update();
-        Pose2D pos = pinpoint.getPosition();
-        double x = pos.getX(DistanceUnit.INCH);
-        double y = pos.getY(DistanceUnit.INCH);
-        double headingDeg = pos.getHeading(AngleUnit.DEGREES);
+    /**
+     * 返回云台应指向的场地绝对角。
+     * 太靠近瞄点时沿用最后有效方向；从未建立方向时保持当前云台朝向。
+     */
+    public double calculateTargetYawDeg(double currentTurretAbsDeg) {
+        if (aimDistance > AIM_MIN_DIST_IN) {
+            return normalizeDeg(aimTargetDeg + aimOffsetDeg);
+        }
 
-        // 场地中心相对车体的方位角（场地方向）
-        targetFieldDeg = Math.toDegrees(Math.atan2(CENTER_Y - y, CENTER_X - x));
+        if (hasValidAim) {
+            aimTargetDeg = lastValidAimTargetDeg;
+            return normalizeDeg(aimTargetDeg + aimOffsetDeg);
+        }
 
-        // 转成相对车头的角度，再映射到舵机行程
-        relativeDeg = normalizeAngle(targetFieldDeg - headingDeg);
-        double servoDeg = Range.clip(
-                SERVO_CENTER_DEG + SERVO_DIRECTION * relativeDeg,
-                0.0, SERVO_TRAVEL_DEG);
-        servoPosition = servoDeg / SERVO_TRAVEL_DEG;
-        setBoth(servoPosition);
+        aimTargetDeg = normalizeDeg(currentTurretAbsDeg - aimOffsetDeg);
+        return normalizeDeg(currentTurretAbsDeg);
     }
 
-    public double getTargetFieldDeg() { return targetFieldDeg; }
-    public double getRelativeDeg()    { return relativeDeg; }
-    public double getServoPosition()  { return servoPosition; }
+    /** 使用当前目标向量计算方位角，应在 calculateTargetYawDeg 前调用。 */
+    public void updateBearing(double robotX, double robotY) {
+        double dx = aimTargetX - robotX;
+        double dy = aimTargetY - robotY;
+        aimDistance = Math.hypot(dx, dy);
 
-    private void setBoth(double position) {
-        double p = Range.clip(position, 0.0, 1.0);
-        servoL.setPosition(p);
-        servoR.setPosition(p);
+        if (aimDistance > AIM_MIN_DIST_IN) {
+            aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
+            lastValidAimTargetDeg = aimTargetDeg;
+            hasValidAim = true;
+        }
     }
 
-    private double normalizeAngle(double angle) {
-        while (angle > 180)   angle -= 360;
-        while (angle <= -180) angle += 360;
+    public void adjustOffset(double deltaDeg) {
+        aimOffsetDeg = normalizeDeg(aimOffsetDeg + deltaDeg);
+    }
+
+    /** 切换自瞄时只清除旧方向，保留当前高低瞄点。 */
+    public void clearDirection() {
+        hasValidAim = false;
+        lastValidAimTargetDeg = 0.0;
+    }
+
+    public void reset() {
+        aimTargetX = AIM_POINT_X_IN;
+        aimTargetY = AIM_POINT_Y_LOW_IN;
+        aimDistance = 0.0;
+        aimTargetDeg = 0.0;
+        aimOffsetDeg = 0.0;
+        clearDirection();
+    }
+
+    public double getAimTargetX() { return aimTargetX; }
+    public double getAimTargetY() { return aimTargetY; }
+    public double getAimDistance() { return aimDistance; }
+    public double getAimTargetDeg() { return aimTargetDeg; }
+    public double getAimOffsetDeg() { return aimOffsetDeg; }
+    public boolean hasValidAim() { return hasValidAim; }
+
+    private static double normalizeDeg(double angle) {
+        while (angle > 180.0) angle -= 360.0;
+        while (angle < -180.0) angle += 360.0;
         return angle;
     }
 }

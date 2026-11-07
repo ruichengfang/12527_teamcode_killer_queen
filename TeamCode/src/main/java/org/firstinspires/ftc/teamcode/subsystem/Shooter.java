@@ -1,143 +1,169 @@
-//package org.firstinspires.ftc.teamcode.subsystem;
-//
-//import com.qualcomm.robotcore.hardware.DcMotor;
-//import com.qualcomm.robotcore.hardware.DcMotorEx;
-//import com.qualcomm.robotcore.hardware.HardwareMap;
-//
-//import org.firstinspires.ftc.teamcode.NameConstants;
-//
-///**
-// * Shooter 子系统
-// *
-// * 【需要自行修改的部分】
-// * 1. MOTOR_0~3：改成你在 Driver Station 里配置的设备名
-// * 2. motor0/motor1 方向：根据实际安装调整 REVERSE / FORWARD
-// * 3. motor3 方向：若物理上与电机 2 反向安装，取消注释 setDirection(REVERSE)
-// * 4. TICKS_PER_REV：按你的电机编码器规格修改（裸电机 28，带齿轮箱需乘减速比）
-// * 5. PID 参数 kP / kD / kF：需根据实际飞轮调参
-// * 6. BUMPER_FEED_POWER / TRIGGER_MAX_POWER：按需调整
-// */
-//public class Shooter {
-//
-//    /* ==================== 设备名（和 Configure Robot 里完全一致） ==================== */
-//    private static final String MOTOR_0 = NameConstants.SHOOTER_MOTOR_0;
-//    private static final String MOTOR_1 = NameConstants.SHOOTER_MOTOR_1;
-//    private static final String MOTOR_2 = NameConstants.SHOOTER_MOTOR_2;
-//    private static final String MOTOR_3 = NameConstants.SHOOTER_MOTOR_3;
-//
-//    /* ==================== 编码器 / 转速 ==================== */
-//    private static final double TICKS_PER_REV = 28.0;    // 【需修改】按电机实际规格填写
-//
-//    private static final double MIN_RPM  = 0;
-//    private static final double MAX_RPM  = 6000;
-//    private static final double RPM_RATE = 1000.0;       // ↑/↓ 按住时每秒变化多少 RPM
-//
-//    /** 扳机压满（1.0）时电机 2、3 的功率。 */
-//    private static final double TRIGGER_MAX_POWER = 1.0;
-//
-//    /** 按住右 Bumper 时 2、3 电机的固定正转功率。 */
-//    private static final double BUMPER_FEED_POWER = 1;
-//
-//    /* ==================== PID 参数（仅 0/1 使用） ==================== */
-//    private double kP = 0.0020;   // 【需修改】按实际飞轮调参
-//    private double kD = 0.00002;  // 【需修改】按实际飞轮调参
-//    private double kF = 0.00019;  // 【需修改】按实际飞轮调参
-//
-//    /* ==================== 硬件 ==================== */
-//    private DcMotorEx motor0, motor1, motor2, motor3;
-//
-//    /* ==================== 状态 ==================== */
-//    private double targetRPM01   = 0;
-//    private double filteredRPM01 = 0;
-//    private double lastError01   = 0;
-//    private double power01       = 0;
-//    private double power2 = 0;
-//    private double power3 = 0;
-//    private double lastTime = 0;
-//
-//    /* ==================== 初始化 ==================== */
-//    public Shooter(HardwareMap hardwareMap) {
-//        motor0 = hardwareMap.get(DcMotorEx.class, MOTOR_0);
-//        motor1 = hardwareMap.get(DcMotorEx.class, MOTOR_1);
-//        motor2 = hardwareMap.get(DcMotorEx.class, MOTOR_2);
-//        motor3 = hardwareMap.get(DcMotorEx.class, MOTOR_3);
-//
-//        for (DcMotorEx m : new DcMotorEx[]{motor0, motor1, motor2, motor3}) {
-//            m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-//            m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-//        }
-//
-//        // 【需修改】飞轮方向修正
-//        motor0.setDirection(DcMotor.Direction.REVERSE);
-//        motor1.setDirection(DcMotor.Direction.FORWARD);
-//
-//        // 【需修改】电机 3 若物理上与电机 2 反向安装，取消注释：
-//        // motor3.setDirection(DcMotor.Direction.REVERSE);
-//    }
-//
-//    /**
-//     * 每周期调用一次，更新所有电机的 setPower。
-//     *
-//     * @param runtime        传入 getRuntime()，用于计算 dt
-//     * @param dpadUp         十字键上：提高 0/1 目标转速
-//     * @param dpadDown       十字键下：降低 0/1 目标转速
-//     * @param a              A 键：清零 0/1 目标转速
-//     * @param rightBumper    右 Bumper：强制 2、3 正转
-//     * @param b              B 键：反转修饰（配合扳机）
-//     * @param rightTrigger   右扳机：控制电机 2
-//     * @param leftTrigger    左扳机：控制电机 3
-//     */
-//    public void update(double runtime,
-//                       boolean dpadUp, boolean dpadDown, boolean a,
-//                       boolean rightBumper, boolean b,
-//                       double rightTrigger, double leftTrigger) {
-//
-//        double dt = runtime - lastTime;
-//        if (dt < 1e-4) dt = 1e-4;
-//        lastTime = runtime;
-//
-//        // ---------- 1. 电机 0、1：十字键调目标转速 + A 清零 ----------
-//        if (dpadUp)   targetRPM01 += RPM_RATE * dt;
-//        if (dpadDown) targetRPM01 -= RPM_RATE * dt;
-//        if (a)        targetRPM01 = 0;
-//        targetRPM01 = clamp(targetRPM01, MIN_RPM, MAX_RPM);
-//
-//        // ---------- 2. 电机 2、3 功率计算 ----------
-//        if (rightBumper) {
-//            power2 = BUMPER_FEED_POWER;
-//            power3 = BUMPER_FEED_POWER;
-//        } else {
-//            double dir = b ? -1.0 : 1.0;
-//            power2 = dir * rightTrigger * TRIGGER_MAX_POWER;
-//            power3 = dir * leftTrigger * TRIGGER_MAX_POWER;
-//        }
-//
-//        // ---------- 3. 0/1 组：读 0 号转速 → PD → 两电机同功率 ----------
-//        double raw01 = motor0.getVelocity() * 60.0 / TICKS_PER_REV;
-//        filteredRPM01 += 0.4 * (raw01 - filteredRPM01);
-//
-//        double err01  = targetRPM01 - filteredRPM01;
-//        double derr01 = (err01 - lastError01) / dt;
-//        lastError01   = err01;
-//
-//        power01 = clamp(kF * targetRPM01 + kP * err01 + kD * derr01, -1.0, 1.0);
-//
-//        // ---------- 4. 所有电机 setPower ----------
-//        motor0.setPower(power01);
-//        motor1.setPower(power01);
-//        motor2.setPower(power2);
-//        motor3.setPower(power3);
-//    }
-//
-//    /* ==================== 遥测读取（可选，主程序 telemetry 用） ==================== */
-//    public double getTargetRPM()   { return targetRPM01; }
-//    public double getFilteredRPM() { return filteredRPM01; }
-//    public double getPower01()     { return power01; }
-//    public double getPower2()      { return power2; }
-//    public double getPower3()      { return power3; }
-//
-//    /* ==================== 工具方法 ==================== */
-//    private static double clamp(double v, double lo, double hi) {
-//        return Math.max(lo, Math.min(hi, v));
-//    }
-//}
+package org.firstinspires.ftc.teamcode.subsystem;
+
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.NameConstants;
+
+/** 双电机 Shooter：A 开关飞轮；RB/RT/LT 均为按住才进料，松开即停。 */
+public class Shooter {
+
+    private static final double TICKS_PER_REV = 28.0; // 电机编码器每圈计数
+    private static final double SINGLE_BALL_RPM = 3500.0; // 默认射击转速
+    private static final double SHOOTER_KP = 0.0060; // 飞轮比例系数
+    private static final double SHOOTER_KD = 0.00001; // 飞轮微分系数
+    private static final double SHOOTER_KF = 0.00020; // 飞轮前馈系数
+    private static final double SHOOTER_MIN_POWER = -0.1; // 最小飞轮功率
+    private static final double SHOOTER_MAX_POWER = 1.0; // 最大飞轮功率
+    private static final double INTAKE_SOLO_POWER = 1.0; // RB 单独驱动 intake 的功率
+    private static final double TRIGGER_THRESHOLD = 0.05; // 扳机死区
+
+    private final DcMotorEx shooter0;
+    private final DcMotorEx shooter1;
+
+    private double targetRPM = 0.0;
+    private double filteredRPM = 0.0;
+    private double lastError = 0.0;
+    private double lastTime = 0.0;
+    private double shooterPower = 0.0;
+    private double shooterError = 0.0;
+    private boolean prevA = false;
+
+    public Shooter(HardwareMap hardwareMap) {
+        shooter0 = hardwareMap.get(DcMotorEx.class, NameConstants.SHOOTER_MOTOR_0);
+        shooter1 = hardwareMap.get(DcMotorEx.class, NameConstants.SHOOTER_MOTOR_1);
+
+        shooter0.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooter1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooter0.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooter0.setDirection(DcMotor.Direction.REVERSE);
+        shooter1.setDirection(DcMotor.Direction.REVERSE);
+    }
+
+    public void start(double now) {
+        targetRPM = 0.0;
+        filteredRPM = 0.0;
+        lastError = 0.0;
+        lastTime = now;
+        shooterPower = 0.0;
+        shooterError = 0.0;
+        prevA = false;
+        stopMotors();
+    }
+
+    /** 遥控每圈调用：A 当帧切换飞轮，进料不设任何定时器。 */
+    public void update(Gamepad gamepad, double now,
+                       IntakeSubsystem intake, Telemetry telemetry) {
+        double dt = now - lastTime;
+        if (dt < 1e-4) dt = 1e-4;
+        lastTime = now;
+
+        boolean a = gamepad.a;
+        if (a && !prevA) {
+            targetRPM = targetRPM > 0.0 ? 0.0 : SINGLE_BALL_RPM;
+            lastError = 0.0;
+        }
+        prevA = a;
+
+        // 先处理 A，再计算并输出功率，避免开启后多等一帧。
+        updateShooterPD(dt);
+
+        double intakePower = 0.0;
+        double transitPower = 0.0;
+
+        // RB：按住时仅 intake 正转；RT/LT：按住时 intake+transit 联动。
+        if (gamepad.right_bumper) {
+            intakePower = INTAKE_SOLO_POWER;
+        } else if (gamepad.right_trigger > TRIGGER_THRESHOLD) {
+            intakePower = gamepad.right_trigger;
+            transitPower = gamepad.right_trigger;
+        } else if (gamepad.left_trigger > TRIGGER_THRESHOLD) {
+            intakePower = -gamepad.left_trigger;
+            transitPower = -gamepad.left_trigger;
+        }
+
+        // IntakeSubsystem 内部会反转 transit 的实际电机方向。
+        if (gamepad.right_bumper) {
+            intake.setIntakeOnly(intakePower);
+        } else {
+            intake.setPower(intakePower);
+        }
+
+        telemetry.addData("A 输入", a);
+        telemetry.addData("Shooter 目标 RPM", "%.0f", targetRPM);
+        telemetry.addData("Shooter 实际 RPM", "%.0f", filteredRPM);
+        telemetry.addData("Shooter 误差 RPM", "%.0f", shooterError);
+        telemetry.addData("Shooter 功率", "%.3f", shooterPower);
+        telemetry.addData("Shooter 0/1 输出", "%.2f / %.2f",
+                -shooterPower, shooterPower);
+        telemetry.addData("Shooter 状态", targetRPM > 0.0 ? "开 (A 关闭)" : "关 (A 开启)");
+        telemetry.addData("Intake 功率", "%.2f", intakePower);
+        telemetry.addData("Transit 功率", "%.2f", transitPower);
+        if (targetRPM > 0.0 && Math.abs(shooterError) > 200.0) {
+            telemetry.addLine("Shooter RPM 未稳定，建议误差小于 200 再进料");
+        }
+    }
+
+    /** 保留给 AutoPath 的转速控制接口，自动供弹由 IntakeSubsystem 完成。 */
+    public void update(double runtime,
+                       boolean dpadUp, boolean dpadDown, boolean a,
+                       boolean rightBumper, boolean b,
+                       double rightTrigger, double leftTrigger) {
+        double dt = runtime - lastTime;
+        if (dt < 1e-4) dt = 1e-4;
+        lastTime = runtime;
+
+        if (dpadUp) targetRPM += 1000.0 * dt;
+        if (dpadDown) targetRPM -= 1000.0 * dt;
+        if (a) targetRPM = 0.0;
+        targetRPM = clamp(targetRPM, 0.0, 6000.0);
+        updateShooterPD(dt);
+    }
+
+    private void updateShooterPD(double dt) {
+        double rawRPM = shooter0.getVelocity() * 60.0 / TICKS_PER_REV;
+        filteredRPM += 0.4 * (rawRPM - filteredRPM);
+
+        if (targetRPM <= 0.0) {
+            shooterPower = 0.0;
+            shooterError = 0.0;
+            lastError = 0.0;
+        } else {
+            shooterError = targetRPM - filteredRPM;
+            double dError = (shooterError - lastError) / dt;
+            lastError = shooterError;
+            shooterPower = SHOOTER_KF * targetRPM
+                    + SHOOTER_KP * shooterError
+                    + SHOOTER_KD * dError;
+            shooterPower = clamp(shooterPower, SHOOTER_MIN_POWER, SHOOTER_MAX_POWER);
+        }
+
+        shooter0.setPower(-shooterPower);
+        shooter1.setPower(shooterPower);
+    }
+
+    public void stop() {
+        targetRPM = 0.0;
+        lastError = 0.0;
+        shooterPower = 0.0;
+        shooterError = 0.0;
+        stopMotors();
+    }
+
+    private void stopMotors() {
+        shooter0.setPower(0.0);
+        shooter1.setPower(0.0);
+    }
+
+    public double getTargetRPM() { return targetRPM; }
+    public double getFilteredRPM() { return filteredRPM; }
+    public double getPower01() { return shooterPower; }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+}

@@ -12,59 +12,45 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
+/** 云台三态控制：常规固定 0.5、X 双 Hive 自瞄、Y 场地方向锁定。 */
 public class TurretSubsystem {
 
-    /* ==================== 云台参数 ==================== */
-    private static final double TURRET_INIT = 0.5; // 舵机初始中位位置
+    private static final double TURRET_INIT = 0.5; // 常规状态的舵机固定位置
     private static final double TURRET_MIN = 0.0; // 舵机最小位置
     private static final double TURRET_MAX = 1.0; // 舵机最大位置
-    private static final double TURRET_SERVO_RANGE_DEG = 300.0; // 舵机总行程，单位为度
-    private static final double TURRET_MANUAL_STEP_DEG = 2.0; // 每次手动微调的角度
-    private static final double TURRET_DEADBAND_DEG = 0.5; // 云台角度误差死区
+    private static final double TURRET_SERVO_RANGE_DEG = 300.0; // 舵机总行程
+    private static final double TURRET_MANUAL_STEP_DEG = 2.0; // 每次微调角度
+    private static final double TURRET_DEADBAND_DEG = 0.5; // 角度误差死区
     private static final double TURRET_MECH_RATIO = 0.98; // 同步带传动比 147:150
-    private static final double TURRET_SIGN = 1.0; // 云台旋转方向，反向时改为 -1.0
-    private static final double TURRET_MOUNT_OFFSET_DEG = 180.0; // 云台机械安装偏移角
+    private static final double TURRET_SIGN = 1.0; // 旋转方向，反向时改为 -1.0
+    private static final double TURRET_MOUNT_OFFSET_DEG = 0; // 机械安装偏移角
 
-    /* ==================== 初始场地位置 ==================== */
-    private static final double START_X_IN = 72.0; // 初始 X 坐标，单位为英寸
-    private static final double START_Y_IN = 72.0; // 初始 Y 坐标，单位为英寸
-    private static final double START_HEADING_DEG = 0.0; // 初始场地朝向，单位为度
-
-    /* ==================== 双 Hive 瞄点 ==================== */
-    private static final double AIM_POINT_X_IN = 60.0; // 两个 Hive 瞄点的 X 坐标
-    private static final double AIM_POINT_Y_HIGH_IN = 84.0; // 高侧 Hive 瞄点的 Y 坐标
-    private static final double AIM_POINT_Y_LOW_IN = 60.0; // 低侧 Hive 瞄点的 Y 坐标
-    private static final double AIM_SWITCH_Y_IN = 72.0; // 高低瞄点的切换基准 Y 坐标
-    private static final double AIM_SWITCH_HYST_IN = 1.0; // 瞄点切换滞回，防止抖动
-    private static final double AIM_MIN_DIST_IN = 0.5; // 计算有效瞄准方向的最小距离
+    private static final double START_X_IN = 72.0; // od 初始 X 坐标
+    private static final double START_Y_IN = 72.0; // od 初始 Y 坐标
+    private static final double START_HEADING_DEG = 0.0; // od 初始朝向
 
     private final Servo turretLeft;
     private final Servo turretRight;
     private final GoBildaPinpointDriver pinpoint;
+    private final TurretAim turretAim = new TurretAim();
 
     private double turretPos = TURRET_INIT;
     private double turretTargetYawDeg = START_HEADING_DEG;
-    private double aimOffsetDeg = 0.0;
 
-    private boolean prevLeft;
-    private boolean prevRight;
-    private boolean prevStart;
-    private boolean prevX;
+    private boolean aimMode = false;
+    private boolean lockMode = false;
+    private boolean prevLeft, prevRight, prevStart, prevX, prevY;
 
     private boolean needSetStartPos = true;
     private double pinX = START_X_IN;
     private double pinY = START_Y_IN;
     private double pinHeadingDeg = START_HEADING_DEG;
 
-    private boolean aimMode = false;
-    private double aimDistance = 0.0;
-    private double aimTargetDeg = 0.0;
-    private double aimTargetX = AIM_POINT_X_IN;
-    private double aimTargetY = AIM_POINT_Y_LOW_IN;
-
-    private boolean hasValidAim = false;
-    private double lastValidAimTargetDeg = 0.0;
     private boolean turretReachable = true;
+    private double yawErrorDeg = 0.0;
+    private double effectiveTargetDeg = 0.0;
+    private double turretActualAbsDeg = 0.0;
+    private double turretPosRaw = TURRET_INIT;
 
     public TurretSubsystem(HardwareMap hardwareMap) {
         turretLeft = hardwareMap.get(Servo.class, NameConstants.SERVO_LEFT);
@@ -73,39 +59,58 @@ public class TurretSubsystem {
         setBothPosition(TURRET_INIT);
     }
 
-    /** 在 waitForStart() 后调用，复位按键边沿和云台状态。 */
     public void start() {
         turretPos = TURRET_INIT;
         turretTargetYawDeg = START_HEADING_DEG;
-        aimOffsetDeg = 0.0;
         aimMode = false;
-        aimDistance = 0.0;
-        aimTargetDeg = 0.0;
-        aimTargetX = AIM_POINT_X_IN;
-        aimTargetY = AIM_POINT_Y_LOW_IN;
-        hasValidAim = false;
-        lastValidAimTargetDeg = 0.0;
+        lockMode = false;
         turretReachable = true;
         needSetStartPos = true;
+        turretAim.reset();
 
         prevLeft = false;
         prevRight = false;
         prevX = false;
-        // 避免用于启动 OpMode 的 START 被误认为一次重置命令。
+        prevY = false;
         prevStart = true;
         setBothPosition(TURRET_INIT);
     }
 
-    /**
-     * 每圈调用一次。
-     * X：切换双 Hive 自瞄；dpad 左右：微调 2°；START：重置定位和云台。
-     * 自瞄目标超出舵机行程时，手柄持续震动提醒。
-     */
+    /** 每圈调用；X/Y 模式互斥，START 恢复常规模式并重置 od 起点。 */
     public void update(Gamepad gamepad, Telemetry telemetry) {
-        pinpoint.update();
+        updatePinpoint();
+        handleStart(gamepad);
+        handleModeButtons(gamepad);
+        handleManualTrim(gamepad);
 
-        GoBildaPinpointDriver.DeviceStatus status = pinpoint.getDeviceStatus();
-        if (needSetStartPos && status == GoBildaPinpointDriver.DeviceStatus.READY) {
+        turretAim.update(pinX, pinY);
+
+        if (aimMode) {
+            turretAim.updateBearing(pinX, pinY);
+            double currentAbsDeg = getCurrentTurretAbsDeg();
+            turretTargetYawDeg = turretAim.calculateTargetYawDeg(currentAbsDeg);
+            applyTargetAngle();
+        } else if (lockMode) {
+            applyTargetAngle();
+        } else {
+            setNormalState();
+        }
+
+        setBothPosition(turretPos);
+
+        if (aimMode && !turretReachable) {
+            gamepad.rumble(0.8, 0.8, 200);
+        } else {
+            gamepad.stopRumble();
+        }
+
+        addTelemetry(telemetry);
+    }
+
+    private void updatePinpoint() {
+        pinpoint.update();
+        if (needSetStartPos
+                && pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY) {
             resetPinpointPosition();
             needSetStartPos = false;
         }
@@ -114,124 +119,46 @@ public class TurretSubsystem {
         pinX = pose.getX(DistanceUnit.INCH);
         pinY = pose.getY(DistanceUnit.INCH);
         pinHeadingDeg = pinpoint.getHeading(AngleUnit.DEGREES);
+    }
 
-        updateAimPoint();
-
-        // X 上升沿切换自瞄，并清除上一瞄准方向。
+    private void handleModeButtons(Gamepad gamepad) {
         boolean x = gamepad.x;
         if (x && !prevX) {
             aimMode = !aimMode;
-            hasValidAim = false;
-            lastValidAimTargetDeg = 0.0;
+            if (aimMode) lockMode = false;
+            turretAim.clearDirection();
         }
         prevX = x;
 
-        updateAutoAim();
-        updateManualTrim(gamepad);
-
-        // 使用 od 朝向计算云台需要反向补偿的角度。
-        double effectiveTargetDeg = normalizeDeg(
-                turretTargetYawDeg + TURRET_MOUNT_OFFSET_DEG);
-        double yawErrorDeg = normalizeDeg(effectiveTargetDeg - pinHeadingDeg);
-        if (Math.abs(yawErrorDeg) < TURRET_DEADBAND_DEG) {
-            yawErrorDeg = 0.0;
-        }
-
-        double turretRelativeDeg = TURRET_SIGN * yawErrorDeg / TURRET_MECH_RATIO;
-        double turretPosRaw = TURRET_INIT
-                + turretRelativeDeg / TURRET_SERVO_RANGE_DEG;
-        turretReachable = turretPosRaw >= TURRET_MIN && turretPosRaw <= TURRET_MAX;
-        turretPos = Range.clip(turretPosRaw, TURRET_MIN, TURRET_MAX);
-        setBothPosition(turretPos);
-
-        double turretActualAbsDeg = normalizeDeg(
-                pinHeadingDeg
-                        + TURRET_MOUNT_OFFSET_DEG
-                        + TURRET_SIGN * (turretPos - TURRET_INIT)
-                        * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
-
-        if (aimMode && !turretReachable) {
-            gamepad.rumble(0.8, 0.8, 200);
-        } else {
-            gamepad.stopRumble();
-        }
-
-        // START 上升沿恢复中心起点和云台默认状态。
-        boolean startButton = gamepad.start;
-        if (startButton && !prevStart) {
-            resetPinpointPosition();
-            needSetStartPos = false;
-            pinX = START_X_IN;
-            pinY = START_Y_IN;
-            pinHeadingDeg = START_HEADING_DEG;
-            turretTargetYawDeg = START_HEADING_DEG;
-            aimOffsetDeg = 0.0;
-            hasValidAim = false;
-            lastValidAimTargetDeg = 0.0;
-        }
-        prevStart = startButton;
-
-        addTelemetry(telemetry, status, effectiveTargetDeg,
-                turretActualAbsDeg, yawErrorDeg, turretPosRaw);
-    }
-
-    /** 在 y=72 附近使用 1 英寸滞回，防止瞄点来回跳变。 */
-    private void updateAimPoint() {
-        if (aimTargetY == AIM_POINT_Y_LOW_IN) {
-            if (pinY > AIM_SWITCH_Y_IN + AIM_SWITCH_HYST_IN) {
-                aimTargetY = AIM_POINT_Y_HIGH_IN;
+        boolean y = gamepad.y;
+        if (y && !prevY) {
+            lockMode = !lockMode;
+            if (lockMode) {
+                aimMode = false;
+                turretAim.clearDirection();
+                // 以进入锁定瞬间的云台绝对朝向为目标，避免突然甩动。
+                turretTargetYawDeg = getCurrentTurretAbsDeg();
             }
-        } else if (pinY < AIM_SWITCH_Y_IN - AIM_SWITCH_HYST_IN) {
-            aimTargetY = AIM_POINT_Y_LOW_IN;
         }
+        prevY = y;
     }
 
-    private void updateAutoAim() {
-        double dx = aimTargetX - pinX;
-        double dy = aimTargetY - pinY;
-        aimDistance = Math.hypot(dx, dy);
-
-        if (!aimMode) {
-            return;
-        }
-
-        if (aimDistance > AIM_MIN_DIST_IN) {
-            aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
-            lastValidAimTargetDeg = aimTargetDeg;
-            hasValidAim = true;
-            turretTargetYawDeg = normalizeDeg(aimTargetDeg + aimOffsetDeg);
-        } else if (hasValidAim) {
-            // 太靠近瞄点时沿用最后一次有效方向。
-            aimTargetDeg = lastValidAimTargetDeg;
-            turretTargetYawDeg = normalizeDeg(aimTargetDeg + aimOffsetDeg);
-        } else {
-            // 尚未建立有效方向时保持当前云台朝向。
-            double currentTurretAbsDeg = normalizeDeg(
-                    pinHeadingDeg
-                            + TURRET_MOUNT_OFFSET_DEG
-                            + TURRET_SIGN * (turretPos - TURRET_INIT)
-                            * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
-            turretTargetYawDeg = currentTurretAbsDeg;
-            aimTargetDeg = normalizeDeg(currentTurretAbsDeg - aimOffsetDeg);
-        }
-    }
-
-    private void updateManualTrim(Gamepad gamepad) {
+    private void handleManualTrim(Gamepad gamepad) {
         boolean left = gamepad.dpad_left;
         boolean right = gamepad.dpad_right;
 
         if (left && !prevLeft) {
             if (aimMode) {
-                aimOffsetDeg = normalizeDeg(aimOffsetDeg + TURRET_MANUAL_STEP_DEG);
-            } else {
+                turretAim.adjustOffset(TURRET_MANUAL_STEP_DEG);
+            } else if (lockMode) {
                 turretTargetYawDeg = normalizeDeg(
                         turretTargetYawDeg + TURRET_MANUAL_STEP_DEG);
             }
         }
         if (right && !prevRight) {
             if (aimMode) {
-                aimOffsetDeg = normalizeDeg(aimOffsetDeg - TURRET_MANUAL_STEP_DEG);
-            } else {
+                turretAim.adjustOffset(-TURRET_MANUAL_STEP_DEG);
+            } else if (lockMode) {
                 turretTargetYawDeg = normalizeDeg(
                         turretTargetYawDeg - TURRET_MANUAL_STEP_DEG);
             }
@@ -240,13 +167,59 @@ public class TurretSubsystem {
         prevRight = right;
     }
 
+    /** 将场地绝对目标角转换为舵机位置，使用 od 朝向反向补偿。 */
+    private void applyTargetAngle() {
+        effectiveTargetDeg = normalizeDeg(
+                turretTargetYawDeg + TURRET_MOUNT_OFFSET_DEG);
+        yawErrorDeg = normalizeDeg(effectiveTargetDeg - pinHeadingDeg);
+        if (Math.abs(yawErrorDeg) < TURRET_DEADBAND_DEG) {
+            yawErrorDeg = 0.0;
+        }
+
+        double turretRelativeDeg = TURRET_SIGN * yawErrorDeg / TURRET_MECH_RATIO;
+        turretPosRaw = TURRET_INIT + turretRelativeDeg / TURRET_SERVO_RANGE_DEG;
+        turretReachable = turretPosRaw >= TURRET_MIN && turretPosRaw <= TURRET_MAX;
+        turretPos = Range.clip(turretPosRaw, TURRET_MIN, TURRET_MAX);
+        turretActualAbsDeg = getCurrentTurretAbsDeg();
+    }
+
+    private void setNormalState() {
+        turretPos = TURRET_INIT;
+        turretPosRaw = TURRET_INIT;
+        turretReachable = true;
+        yawErrorDeg = 0.0;
+        effectiveTargetDeg = 0.0;
+        turretActualAbsDeg = getCurrentTurretAbsDeg();
+    }
+
+    private double getCurrentTurretAbsDeg() {
+        return normalizeDeg(
+                pinHeadingDeg
+                        + TURRET_MOUNT_OFFSET_DEG
+                        + TURRET_SIGN * (turretPos - TURRET_INIT)
+                        * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
+    }
+
+    private void handleStart(Gamepad gamepad) {
+        boolean startButton = gamepad.start;
+        if (startButton && !prevStart) {
+            resetPinpointPosition();
+            needSetStartPos = false;
+            pinX = START_X_IN;
+            pinY = START_Y_IN;
+            pinHeadingDeg = START_HEADING_DEG;
+            turretTargetYawDeg = START_HEADING_DEG;
+            aimMode = false;
+            lockMode = false;
+            turretAim.reset();
+        }
+        prevStart = startButton;
+    }
+
     private void resetPinpointPosition() {
         pinpoint.setPosition(new Pose2D(
-                DistanceUnit.INCH,
-                START_X_IN,
-                START_Y_IN,
-                AngleUnit.DEGREES,
-                START_HEADING_DEG));
+                DistanceUnit.INCH, START_X_IN, START_Y_IN,
+                AngleUnit.DEGREES, START_HEADING_DEG));
     }
 
     private void setBothPosition(double position) {
@@ -255,32 +228,31 @@ public class TurretSubsystem {
         turretRight.setPosition(safePosition);
     }
 
-    private void addTelemetry(Telemetry telemetry,
-                              GoBildaPinpointDriver.DeviceStatus status,
-                              double effectiveTargetDeg,
-                              double turretActualAbsDeg,
-                              double yawErrorDeg,
-                              double turretPosRaw) {
-        telemetry.addData("Pinpoint 状态", status);
+    private void addTelemetry(Telemetry telemetry) {
+        String mode = aimMode ? "自瞄 (X 关闭)"
+                : lockMode ? "锁定 (Y 关闭)"
+                : "常规 0.5 (X 自瞄/Y 锁定)";
+
+        telemetry.addData("Pinpoint 状态", pinpoint.getDeviceStatus());
         telemetry.addData("Pinpoint X/Y (in)", "(%.2f, %.2f)", pinX, pinY);
         telemetry.addData("Pinpoint Heading (deg)", "%.1f", pinHeadingDeg);
-        telemetry.addData("设置起点", needSetStartPos ? "等待 READY" : "完成");
-        telemetry.addData("自瞄模式", aimMode ? "开 (X 关闭)" : "关 (X 开启)");
-        telemetry.addData("当前 Hive 瞄点 (in)", "(%.1f, %.1f)", aimTargetX, aimTargetY);
-        telemetry.addData("自瞄距离 (in)", "%.2f", aimDistance);
-        telemetry.addData("指向瞄点绝对角 (deg)", "%.1f", aimTargetDeg);
-        telemetry.addData("自瞄偏移角 (deg)", "%.1f", aimOffsetDeg);
-        telemetry.addData("有效瞄准已建立", hasValidAim ? "是" : "否");
+        telemetry.addData("云台状态", mode);
+        telemetry.addData("云台舵机位置", "%.3f", turretPos);
         telemetry.addData("云台目标绝对角 (deg)", "%.1f", turretTargetYawDeg);
-        telemetry.addData("送给舵机目标角 (deg)", "%.1f", effectiveTargetDeg);
         telemetry.addData("云台实际绝对角 (deg)", "%.1f", turretActualAbsDeg);
         telemetry.addData("云台锁定误差 (deg)", "%.1f", yawErrorDeg);
-        telemetry.addData("云台舵机位置", "%.3f", turretPos);
-        telemetry.addData("云台原始位置(未限幅)", "%.3f", turretPosRaw);
-        telemetry.addData("云台可达", turretReachable ? "是" : "否（已限幅并震动）");
+        telemetry.addData("云台可达", turretReachable ? "是" : "否（已限幅）");
 
-        if (aimMode && !hasValidAim) {
-            telemetry.addLine("距离瞄点太近，方向未定义，请移开机器人");
+        if (aimMode) {
+            telemetry.addData("当前 Hive 瞄点 (in)", "(%.1f, %.1f)",
+                    turretAim.getAimTargetX(), turretAim.getAimTargetY());
+            telemetry.addData("自瞄距离 (in)", "%.2f", turretAim.getAimDistance());
+            telemetry.addData("指向瞄点绝对角 (deg)", "%.1f", turretAim.getAimTargetDeg());
+            telemetry.addData("自瞄偏移角 (deg)", "%.1f", turretAim.getAimOffsetDeg());
+            telemetry.addData("有效瞄准已建立", turretAim.hasValidAim() ? "是" : "否");
+            if (!turretAim.hasValidAim()) {
+                telemetry.addLine("距离瞄点太近，方向未定义，请移开机器人");
+            }
         }
     }
 

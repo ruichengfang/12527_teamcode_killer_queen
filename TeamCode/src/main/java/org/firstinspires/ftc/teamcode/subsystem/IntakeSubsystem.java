@@ -32,4 +32,21 @@ public class IntakeSubsystem {
     public void constant() {
         intakeMotor.setPower(0.4);
     }
+
+    /** 设置串联进料功率，正值进料、负值退料。 */
+    public void setPower(double power) {
+        intakeMotor.setPower(power);
+        transitMotor.setPower(-power);
+    }
+
+    /** 只驱动 intake，transit 保持停止。 */
+    public void setIntakeOnly(double power) {
+        intakeMotor.setPower(power);
+        transitMotor.setPower(0.0);
+    }
+
+    /** 停止 intake 和 transit，供自动程序结束时调用。 */
+    public void stop() {
+        setPower(0.0);
+    }
 }

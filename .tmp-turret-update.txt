@@ -1,0 +1,637 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.Servo;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+
+@TeleOp(name = "driveTurretAimTest", group = "Test")
+public class turret extends OpMode {
+
+    /* ==================== 硬件名称 ==================== */
+    private static final String FRONT_LEFT_NAME  = "leftFrontMotor";
+    private static final String BACK_RIGHT_NAME  = "rightBackMotor";
+    private static final String BACK_LEFT_NAME   = "leftBackMotor";
+    private static final String FRONT_RIGHT_NAME = "rightFrontMotor";
+
+    private static final String INTAKE_NAME  = "intakeMotor";
+    private static final String TRANSIT_NAME = "transitMotor";
+
+    private static final String TURRET_LEFT_NAME  = "leftServo";
+    private static final String TURRET_RIGHT_NAME = "rightServo";
+
+    private static final String PINPOINT_NAME = "od";
+
+    // TODO 必须改成实际 config 中的 shooter 电机名
+    private static final String SHOOTER0_NAME = "shooterMotor1";
+    private static final String SHOOTER1_NAME = "shooterMotor2";
+
+    /* ==================== 常量 ==================== */
+    private static final double STICK_DEADZONE    = 0.05;
+    private static final double TRIGGER_THRESHOLD = 0.05;
+
+    // 常规状态下云台固定位置
+    private static final double TURRET_INIT = 0.5;
+    private static final double TURRET_MIN  = 0.0;
+    private static final double TURRET_MAX  = 1.0;
+    private static final double TURRET_SERVO_RANGE_DEG = 300.0;
+
+    private static final double TURRET_MANUAL_STEP_DEG = 2.0;
+    private static final double TURRET_DEADBAND_DEG = 0.5;
+
+    private static final double TURRET_MECH_RATIO = 0.98;
+    private static final double TURRET_SIGN = 1.0;
+
+    // 云台机械安装反向 180°
+    private static final double TURRET_MOUNT_OFFSET_DEG = 180.0;
+
+    /* ==================== Pinpoint ==================== */
+    private static final double PINPOINT_X_OFFSET_MM = -20;
+    private static final double PINPOINT_Y_OFFSET_MM = -135.2;
+
+    private static final double START_X_IN = 72.0;
+    private static final double START_Y_IN = 72.0;
+    private static final double START_HEADING_DEG = 0.0;
+
+    /* ==================== 双瞄点 ==================== */
+    private static final double AIM_POINT_X_IN = 60.0;
+    private static final double AIM_POINT_Y_HIGH_IN = 84.0;
+    private static final double AIM_POINT_Y_LOW_IN  = 60.0;
+    private static final double AIM_SWITCH_Y_IN     = 72.0;
+    private static final double AIM_SWITCH_HYST_IN  = 1.0;
+    private static final double AIM_MIN_DIST_IN = 0.5;
+
+    /* ==================== Shooter ==================== */
+    private static final double TICKS_PER_REV = 28.0;
+    private static final double SINGLE_BALL_RPM = 3500.0;
+
+    private static final double SHOOTER_KP = 0.0060;
+    private static final double SHOOTER_KD = 0.00001;
+    private static final double SHOOTER_KF = 0.00020;
+    private static final double SHOOTER_MIN_POWER = -0.1;
+    private static final double SHOOTER_MAX_POWER = 1.0;
+
+    private static final double FIRE_POWER = 1.0;
+    private static final double FIRE_DURATION_SEC = 1.0;
+
+    /* ==================== 硬件 ==================== */
+    private DcMotorEx frontLeft, backRight, backLeft, frontRight;
+    private DcMotorEx intakeMotor, transitMotor;
+    private DcMotorEx shooter0, shooter1;
+    private Servo turretLeft, turretRight;
+    private IMU imu;
+    private GoBildaPinpointDriver pinpoint;
+
+    /* ==================== 状态 ==================== */
+    private double turretPos = TURRET_INIT;
+    private double turretTargetYawDeg = START_HEADING_DEG;
+    private double aimOffsetDeg = 0.0;
+
+    // 云台模式（互斥）
+    private boolean aimMode  = false;   // 自瞄
+    private boolean lockMode = false;   // 锁定
+
+    private boolean prevLeft, prevRight, prevStart, prevX, prevY;
+    private boolean prevA, prevRB;
+
+    private boolean pinpointReady = false;
+    private boolean needSetStartPos = true;
+    private double pinX = 0.0, pinY = 0.0, pinHeadingDeg = 0.0;
+
+    private double aimDistance = 0.0;
+    private double aimTargetDeg = 0.0;
+
+    private double aimTargetX = AIM_POINT_X_IN;
+    private double aimTargetY = AIM_POINT_Y_LOW_IN;
+
+    private boolean hasValidAim = false;
+    private double lastValidAimTargetDeg = 0.0;
+    private boolean turretReachable = true;
+
+    // 遥测用
+    private double yawErrorDeg = 0.0;
+    private double effectiveTargetDeg = 0.0;
+    private double turretActualAbsDeg = 0.0;
+    private double turretPosRaw = TURRET_INIT;
+
+    // Shooter
+    private double targetRPM   = 0.0;
+    private double filteredRPM = 0.0;
+    private double lastError   = 0.0;
+    private double lastTime    = 0.0;
+    private double shooterPower = 0.0;
+    private double shooterError = 0.0;
+
+    // 发射
+    private boolean fireActive = false;
+    private double  fireEndTime = 0.0;
+
+    /* ==================== 初始化 ==================== */
+    @Override
+    public void init() {
+        frontLeft  = hardwareMap.get(DcMotorEx.class, FRONT_LEFT_NAME);
+        backRight  = hardwareMap.get(DcMotorEx.class, BACK_RIGHT_NAME);
+        backLeft   = hardwareMap.get(DcMotorEx.class, BACK_LEFT_NAME);
+        frontRight = hardwareMap.get(DcMotorEx.class, FRONT_RIGHT_NAME);
+
+        intakeMotor  = hardwareMap.get(DcMotorEx.class, INTAKE_NAME);
+        transitMotor = hardwareMap.get(DcMotorEx.class, TRANSIT_NAME);
+
+        shooter0 = hardwareMap.get(DcMotorEx.class, SHOOTER0_NAME);
+        shooter1 = hardwareMap.get(DcMotorEx.class, SHOOTER1_NAME);
+
+        turretLeft  = hardwareMap.get(Servo.class, TURRET_LEFT_NAME);
+        turretRight = hardwareMap.get(Servo.class, TURRET_RIGHT_NAME);
+
+        // 底盘
+        frontLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        backRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        backLeft.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        frontRight.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
+        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        frontLeft.setDirection(DcMotor.Direction.REVERSE);
+        backLeft.setDirection(DcMotor.Direction.REVERSE);
+        frontRight.setDirection(DcMotor.Direction.FORWARD);
+        backRight.setDirection(DcMotor.Direction.FORWARD);
+
+        // Intake / Transit
+        intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        transitMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        transitMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        // Shooter
+        shooter0.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooter1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooter0.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooter0.setDirection(DcMotor.Direction.REVERSE);
+        shooter1.setDirection(DcMotor.Direction.REVERSE);
+        transitMotor.setDirection(DcMotor.Direction.REVERSE);
+
+        // IMU
+        imu = hardwareMap.get(IMU.class, "imu");
+        RevHubOrientationOnRobot orientation = new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
+                RevHubOrientationOnRobot.UsbFacingDirection.UP);
+        imu.initialize(new IMU.Parameters(orientation));
+        imu.resetYaw();
+
+        // Pinpoint
+        pinpointReady = false;
+        needSetStartPos = true;
+        try {
+            pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, PINPOINT_NAME);
+            pinpoint.setOffsets(PINPOINT_X_OFFSET_MM, PINPOINT_Y_OFFSET_MM, DistanceUnit.MM);
+            pinpoint.resetPosAndIMU();
+            pinpointReady = true;
+        } catch (Exception e) {
+            pinpointReady = false;
+        }
+
+        // 云台初始
+        turretPos = TURRET_INIT;
+        turretTargetYawDeg = START_HEADING_DEG;
+        aimOffsetDeg = 0.0;
+        turretLeft.setPosition(turretPos);
+        turretRight.setPosition(turretPos);
+
+        // 云台模式
+        aimMode = false;
+        lockMode = false;
+
+        // 自瞄初始
+        aimDistance = 0.0;
+        aimTargetDeg = 0.0;
+        aimTargetX = AIM_POINT_X_IN;
+        aimTargetY = AIM_POINT_Y_LOW_IN;
+        hasValidAim = false;
+        lastValidAimTargetDeg = 0.0;
+        turretReachable = true;
+
+        // Shooter 初始
+        targetRPM = 0.0;
+        filteredRPM = 0.0;
+        lastError = 0.0;
+        shooterPower = 0.0;
+        shooterError = 0.0;
+
+        // 发射初始
+        fireActive = false;
+        fireEndTime = 0.0;
+
+        telemetry.addLine("已初始化：底盘 + Pinpoint + Shooter + 云台三态");
+        telemetry.addLine("云台：常规 0.5 / X 自瞄 / Y 锁定");
+        telemetry.addLine("A Shooter开/关；右Bumper 发射1秒");
+        telemetry.addLine("RT/LT 手动 intake+transit；dpad 微调");
+        telemetry.addLine("云台超出 ±150° 行程时手柄震动（仅自瞄）");
+        telemetry.addLine(pinpointReady ? "Pinpoint: 已启用" : "Pinpoint: 未找到");
+        telemetry.update();
+    }
+
+    @Override
+    public void start() {
+        prevStart = true;
+        prevX = false;
+        prevY = false;
+        prevA = false;
+        prevRB = false;
+        lastTime = getRuntime();
+        lastError = 0.0;
+    }
+
+    /* ==================== 主循环 ==================== */
+    @Override
+    public void loop() {
+        double now = getRuntime();
+        double dt = now - lastTime;
+        if (dt < 1e-4) dt = 1e-4;
+        lastTime = now;
+
+        // ================= Pinpoint 更新 =================
+        String pinpointStatusStr = "N/A";
+        if (pinpointReady) {
+            pinpoint.update();
+
+            GoBildaPinpointDriver.DeviceStatus status = pinpoint.getDeviceStatus();
+            pinpointStatusStr = status.toString();
+
+            if (needSetStartPos && status == GoBildaPinpointDriver.DeviceStatus.READY) {
+                pinpoint.setPosition(new Pose2D(
+                        DistanceUnit.INCH,
+                        START_X_IN, START_Y_IN,
+                        AngleUnit.DEGREES, START_HEADING_DEG));
+                needSetStartPos = false;
+                pinX = START_X_IN;
+                pinY = START_Y_IN;
+                pinHeadingDeg = START_HEADING_DEG;
+            }
+
+            Pose2D pose = pinpoint.getPosition();
+            pinX = pose.getX(DistanceUnit.INCH);
+            pinY = pose.getY(DistanceUnit.INCH);
+            pinHeadingDeg = pinpoint.getHeading(AngleUnit.DEGREES);
+
+            // 双瞄点选择 + 滞回
+            if (aimTargetY == AIM_POINT_Y_LOW_IN) {
+                if (pinY > AIM_SWITCH_Y_IN + AIM_SWITCH_HYST_IN) {
+                    aimTargetY = AIM_POINT_Y_HIGH_IN;
+                }
+            } else {
+                if (pinY < AIM_SWITCH_Y_IN - AIM_SWITCH_HYST_IN) {
+                    aimTargetY = AIM_POINT_Y_LOW_IN;
+                }
+            }
+        }
+
+        // ================= 底盘 Field-Centric =================
+        double drive  = deadzone(-gamepad1.left_stick_y);
+        double strafe = deadzone( gamepad1.left_stick_x);
+        double turn   = deadzone( gamepad1.right_stick_x);
+
+        double yawRad = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        double yawDeg = Math.toDegrees(yawRad);
+
+        double cos = Math.cos(yawRad);
+        double sin = Math.sin(yawRad);
+
+        double strafeRobot =  strafe * cos + drive * sin;
+        double driveRobot  = -strafe * sin + drive * cos;
+
+        double fl = driveRobot + strafeRobot + turn;
+        double fr = driveRobot - strafeRobot - turn;
+        double bl = driveRobot - strafeRobot + turn;
+        double br = driveRobot + strafeRobot - turn;
+
+        double max = Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
+                              Math.max(Math.abs(bl), Math.abs(br)));
+        if (max > 1.0) {
+            fl /= max; fr /= max; bl /= max; br /= max;
+        }
+
+        frontLeft.setPower(fl);
+        backLeft.setPower(bl);
+        frontRight.setPower(fr);
+        backRight.setPower(br);
+
+        // ================= X：自瞄开关（互斥锁定）=================
+        boolean x = gamepad1.x;
+        if (x && !prevX) {
+            if (pinpointReady) {
+                aimMode = !aimMode;
+                if (aimMode) lockMode = false;
+                hasValidAim = false;
+                lastValidAimTargetDeg = 0.0;
+            }
+        }
+        prevX = x;
+
+        // ================= Y：锁定开关（互斥自瞄）=================
+        boolean yBtn = gamepad1.y;
+        if (yBtn && !prevY) {
+            lockMode = !lockMode;
+            if (lockMode) {
+                aimMode = false;
+                hasValidAim = false;
+                // 进入锁定时，以当前云台物理绝对朝向作为锁定角，避免突然甩
+                turretTargetYawDeg = normalizeDeg(
+                        yawDeg
+                        + TURRET_MOUNT_OFFSET_DEG
+                        + TURRET_SIGN * (turretPos - TURRET_INIT)
+                          * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
+            }
+        }
+        prevY = yBtn;
+
+        // ================= dpad 微调 =================
+        boolean left  = gamepad1.dpad_left;
+        boolean right = gamepad1.dpad_right;
+
+        if (left && !prevLeft) {
+            if (aimMode) {
+                aimOffsetDeg = normalizeDeg(aimOffsetDeg + TURRET_MANUAL_STEP_DEG);
+            } else if (lockMode) {
+                turretTargetYawDeg = normalizeDeg(turretTargetYawDeg + TURRET_MANUAL_STEP_DEG);
+            }
+        }
+        if (right && !prevRight) {
+            if (aimMode) {
+                aimOffsetDeg = normalizeDeg(aimOffsetDeg - TURRET_MANUAL_STEP_DEG);
+            } else if (lockMode) {
+                turretTargetYawDeg = normalizeDeg(turretTargetYawDeg - TURRET_MANUAL_STEP_DEG);
+            }
+        }
+        prevLeft = left;
+        prevRight = right;
+
+        // ================= 云台状态机 =================
+        yawErrorDeg = 0.0;
+        effectiveTargetDeg = 0.0;
+        turretActualAbsDeg = 0.0;
+        turretPosRaw = TURRET_INIT;
+        turretReachable = true;
+
+        if (aimMode && pinpointReady) {
+            // ---- 状态 1：自瞄 ----
+            double dx = aimTargetX - pinX;
+            double dy = aimTargetY - pinY;
+            aimDistance = Math.hypot(dx, dy);
+
+            if (aimDistance > AIM_MIN_DIST_IN) {
+                aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
+                lastValidAimTargetDeg = aimTargetDeg;
+                hasValidAim = true;
+                turretTargetYawDeg = normalizeDeg(aimTargetDeg + aimOffsetDeg);
+            } else if (hasValidAim) {
+                aimTargetDeg = lastValidAimTargetDeg;
+                turretTargetYawDeg = normalizeDeg(aimTargetDeg + aimOffsetDeg);
+            } else {
+                double currentTurretAbsDeg = normalizeDeg(
+                        yawDeg + TURRET_MOUNT_OFFSET_DEG
+                        + TURRET_SIGN * (turretPos - TURRET_INIT)
+                          * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
+                turretTargetYawDeg = currentTurretAbsDeg;
+                aimTargetDeg = normalizeDeg(currentTurretAbsDeg - aimOffsetDeg);
+            }
+
+            // IMU 补偿
+            effectiveTargetDeg = normalizeDeg(turretTargetYawDeg + TURRET_MOUNT_OFFSET_DEG);
+            double targetRad = Math.toRadians(effectiveTargetDeg);
+            double yawErrorRad = normalizeRad(targetRad - yawRad);
+            yawErrorDeg = Math.toDegrees(yawErrorRad);
+            if (Math.abs(yawErrorDeg) < TURRET_DEADBAND_DEG) yawErrorDeg = 0.0;
+
+            double turretRelativeDeg = TURRET_SIGN * yawErrorDeg / TURRET_MECH_RATIO;
+            turretPosRaw = TURRET_INIT + turretRelativeDeg / TURRET_SERVO_RANGE_DEG;
+            turretReachable = (turretPosRaw >= TURRET_MIN && turretPosRaw <= TURRET_MAX);
+            turretPos = clamp(turretPosRaw, TURRET_MIN, TURRET_MAX);
+
+            turretActualAbsDeg = normalizeDeg(
+                    yawDeg + TURRET_MOUNT_OFFSET_DEG
+                    + TURRET_SIGN * (turretPos - TURRET_INIT)
+                      * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
+
+        } else if (lockMode) {
+            // ---- 状态 2：锁定 ----
+            effectiveTargetDeg = normalizeDeg(turretTargetYawDeg + TURRET_MOUNT_OFFSET_DEG);
+            double targetRad = Math.toRadians(effectiveTargetDeg);
+            double yawErrorRad = normalizeRad(targetRad - yawRad);
+            yawErrorDeg = Math.toDegrees(yawErrorRad);
+            if (Math.abs(yawErrorDeg) < TURRET_DEADBAND_DEG) yawErrorDeg = 0.0;
+
+            double turretRelativeDeg = TURRET_SIGN * yawErrorDeg / TURRET_MECH_RATIO;
+            turretPosRaw = TURRET_INIT + turretRelativeDeg / TURRET_SERVO_RANGE_DEG;
+            turretReachable = (turretPosRaw >= TURRET_MIN && turretPosRaw <= TURRET_MAX);
+            turretPos = clamp(turretPosRaw, TURRET_MIN, TURRET_MAX);
+
+            turretActualAbsDeg = normalizeDeg(
+                    yawDeg + TURRET_MOUNT_OFFSET_DEG
+                    + TURRET_SIGN * (turretPos - TURRET_INIT)
+                      * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
+
+            if (pinpointReady) {
+                aimDistance = Math.hypot(aimTargetX - pinX, aimTargetY - pinY);
+            }
+
+        } else {
+            // ---- 状态 0：常规，固定 0.5 ----
+            turretPos = TURRET_INIT;
+            turretPosRaw = TURRET_INIT;
+            turretReachable = true;
+            yawErrorDeg = 0.0;
+            effectiveTargetDeg = 0.0;
+            turretActualAbsDeg = normalizeDeg(
+                    yawDeg + TURRET_MOUNT_OFFSET_DEG);
+            if (pinpointReady) {
+                aimDistance = Math.hypot(aimTargetX - pinX, aimTargetY - pinY);
+            }
+        }
+
+        turretLeft.setPosition(turretPos);
+        turretRight.setPosition(turretPos);
+
+        // ================= 云台不可达时手柄震动（仅自瞄）=================
+        if (aimMode && !turretReachable) {
+            gamepad1.rumble(0.8, 0.8, 200);
+        } else {
+            gamepad1.stopRumble();
+        }
+
+        // ================= Shooter PD 控制 =================
+        double rawRPM = shooter0.getVelocity() * 60.0 / TICKS_PER_REV;
+        filteredRPM += 0.4 * (rawRPM - filteredRPM);
+
+        if (targetRPM <= 0.0) {
+            shooterPower = 0.0;
+            shooterError = 0.0;
+            lastError = 0.0;
+        } else {
+            shooterError = targetRPM - filteredRPM;
+            double dError = (shooterError - lastError) / dt;
+            lastError = shooterError;
+
+            shooterPower = SHOOTER_KF * targetRPM
+                         + SHOOTER_KP * shooterError
+                         + SHOOTER_KD * dError;
+            shooterPower = clamp(shooterPower, SHOOTER_MIN_POWER, SHOOTER_MAX_POWER);
+        }
+
+        shooter0.setPower(-shooterPower);
+        shooter1.setPower(shooterPower);
+
+        // ================= A：Shooter 开/关 =================
+        boolean a = gamepad1.a;
+        if (a && !prevA) {
+            if (!fireActive) {
+                targetRPM = (targetRPM > 0.0) ? 0.0 : SINGLE_BALL_RPM;
+            }
+        }
+        prevA = a;
+
+        // ================= 右 Bumper：发射 1 秒 =================
+        boolean rb = gamepad1.right_bumper;
+        if (rb && !prevRB) {
+            if (!fireActive) {
+                fireActive = true;
+                fireEndTime = now + FIRE_DURATION_SEC;
+                if (targetRPM <= 0.0) {
+                    targetRPM = SINGLE_BALL_RPM;
+                }
+            }
+        }
+        prevRB = rb;
+
+        // ================= Intake + Transit =================
+        double seriesPower = 0.0;
+
+        if (fireActive) {
+            if (now >= fireEndTime) {
+                fireActive = false;
+                seriesPower = 0.0;
+            } else {
+                seriesPower = FIRE_POWER;
+            }
+        }
+
+        if (!fireActive) {
+            double rt = gamepad1.right_trigger;
+            double lt = gamepad1.left_trigger;
+            if (rt > TRIGGER_THRESHOLD) seriesPower = rt;
+            else if (lt > TRIGGER_THRESHOLD) seriesPower = -lt;
+        }
+
+        intakeMotor.setPower(seriesPower);
+        transitMotor.setPower(seriesPower);
+
+        // ================= START =================
+        boolean startBtn = gamepad1.start;
+        if (startBtn && !prevStart) {
+            imu.resetYaw();
+            turretTargetYawDeg = START_HEADING_DEG;
+            aimOffsetDeg = 0.0;
+            hasValidAim = false;
+            lastValidAimTargetDeg = 0.0;
+            aimMode = false;
+            lockMode = false;
+            if (pinpointReady) {
+                pinpoint.setPosition(new Pose2D(
+                        DistanceUnit.INCH,
+                        START_X_IN, START_Y_IN,
+                        AngleUnit.DEGREES, START_HEADING_DEG));
+                needSetStartPos = false;
+            }
+        }
+        prevStart = startBtn;
+
+        // ================= 遥测 =================
+        String turretModeStr = aimMode ? "自瞄 (X 关闭)"
+                             : lockMode ? "锁定 (Y 关闭)"
+                             : "常规 0.5 (X自瞄/Y锁定)";
+
+        telemetry.addData("IMU Yaw (°)", "%.1f", yawDeg);
+        telemetry.addData("底盘 FL/BL/FR/BR", "%.2f / %.2f / %.2f / %.2f",
+                fl, bl, fr, br);
+
+        telemetry.addData("Pinpoint 状态", pinpointReady ? pinpointStatusStr : "未配置");
+        if (pinpointReady) {
+            telemetry.addData("Pinpoint X/Y (in)", "(%.2f, %.2f)", pinX, pinY);
+            telemetry.addData("Pinpoint Heading (°)", "%.1f", pinHeadingDeg);
+            telemetry.addData("Pinpoint - IMU 差值 (°)", "%.1f",
+                    normalizeDeg(pinHeadingDeg - yawDeg));
+        }
+
+        telemetry.addData("云台状态", turretModeStr);
+        telemetry.addData("云台舵机位置", "%.3f", turretPos);
+        telemetry.addData("云台目标绝对角 (°)", "%.1f", turretTargetYawDeg);
+        telemetry.addData("云台实际绝对角 (°)", "%.1f", turretActualAbsDeg);
+        telemetry.addData("云台锁定误差 (°)", "%.1f", yawErrorDeg);
+        telemetry.addData("云台可达?", turretReachable ? "是" : "否（顶限位）");
+
+        if (aimMode) {
+            telemetry.addData("当前瞄点 (in)", "(%.1f, %.1f)", aimTargetX, aimTargetY);
+            telemetry.addData("自瞄距离 (in)", "%.2f", aimDistance);
+            telemetry.addData("指向瞄点绝对角 (°)", "%.1f", aimTargetDeg);
+            telemetry.addData("自瞄偏移角 (°)", "%.1f", aimOffsetDeg);
+            telemetry.addData("有效瞄准已建立?", hasValidAim ? "是" : "否");
+        }
+        if (lockMode) {
+            telemetry.addData("锁定角微调", "dpad_left/right");
+        }
+
+        telemetry.addData("Shooter 目标 RPM", "%.0f", targetRPM);
+        telemetry.addData("Shooter 实际 RPM", "%.0f", filteredRPM);
+        telemetry.addData("Shooter 误差 RPM", "%.0f", shooterError);
+        telemetry.addData("Shooter 功率", "%.3f", shooterPower);
+        telemetry.addData("Shooter 状态", targetRPM > 0.0 ? "开 (A 关闭)" : "关 (A 开启)");
+
+        telemetry.addData("发射状态", fireActive ? "进行中" : "空闲");
+        if (fireActive) {
+            telemetry.addData("  发射剩余 (s)", "%.2f", Math.max(0.0, fireEndTime - now));
+        }
+
+        telemetry.addData("串联功率", "%.2f", seriesPower);
+
+        if (aimMode && !turretReachable) {
+            telemetry.addLine("※ 自瞄云台超出 ±150° 行程，已震动提醒");
+        }
+        if (aimMode && !hasValidAim) {
+            telemetry.addLine("※ 距离瞄点太近，方向未定义；请把车移开 ≥6 英寸");
+        }
+        if (targetRPM > 0.0 && Math.abs(shooterError) > 200.0) {
+            telemetry.addLine("※ Shooter RPM 未稳定，建议等到误差 < 200 再发射");
+        }
+
+        telemetry.update();
+    }
+
+    /* ==================== 工具方法 ==================== */
+    private static double clamp(double v, double lo, double hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+    private static double deadzone(double v) {
+        return Math.abs(v) < STICK_DEADZONE ? 0.0 : v;
+    }
+    private static double normalizeRad(double a) {
+        while (a >  Math.PI) a -= 2.0 * Math.PI;
+        while (a < -Math.PI) a += 2.0 * Math.PI;
+        return a;
+    }
+    private static double normalizeDeg(double a) {
+        while (a >  180.0) a -= 360.0;
+        while (a < -180.0) a += 360.0;
+        return a;
+    }
+}

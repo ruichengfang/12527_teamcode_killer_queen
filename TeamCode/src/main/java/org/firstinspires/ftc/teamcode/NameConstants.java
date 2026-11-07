@@ -15,10 +15,8 @@ public final class NameConstants {
     public static final String RIGHT_BACK_MOTOR  = "rightBackMotor";
 
     /* ==================== 发射机构（subsystem.Shooter） ==================== */
-    public static final String SHOOTER_MOTOR_0 = "0";   // 飞轮 0（带编码器读转速）
-    public static final String SHOOTER_MOTOR_1 = "1";   // 飞轮 1
-    public static final String SHOOTER_MOTOR_2 = "2";   // 供弹 2
-    public static final String SHOOTER_MOTOR_3 = "3";   // 供弹 3
+    public static final String SHOOTER_MOTOR_0 = "shooterMotor1";   // 飞轮 0（带编码器读转速）
+    public static final String SHOOTER_MOTOR_1 = "shooterMotor2";   // 飞轮 1
 
     /* ==================== 入料（subsystem.IntakeSubsystem） ==================== */
     public static final String INTAKE_MOTOR = "intakeMotor";
@@ -31,5 +29,6 @@ public final class NameConstants {
     /* ==================== 舵机与 IMU（subsystem.TurretSubsystem） ==================== */
     public static final String SERVO_LEFT  = "leftServo";
     public static final String SERVO_RIGHT = "rightServo";
+    public static final String BLOCKER_SERVO = "blockerServo"; // Blocker 舵机
     public static final String IMU         = "imu";     // Control Hub 内置 IMU
 }
