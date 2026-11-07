@@ -27,7 +27,7 @@ public class MecanumDrive extends LinearOpMode {
         try {
             while (opModeIsActive()) {
                 driveCommand.execute();
-                turret.update(gamepad1.y, gamepad1.b, false);
+                turret.update(gamepad1, telemetry);
                 telemetry.addData("heading deg", "%.1f", drive.getRelativeHeadingDegrees());
                 telemetry.addData("rx", "%.3f", gamepad1.right_stick_x);
                 telemetry.update();

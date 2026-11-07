@@ -19,11 +19,11 @@ public class DriveSubsystem {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, NameConstants.OD);
         pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
                 GoBildaPinpointDriver.EncoderDirection.FORWARD);
-        pinpoint.setOffsets(20.1, -131.12, DistanceUnit.MM);
+        pinpoint.setOffsets(-20, -135.2, DistanceUnit.MM);
         pinpoint.resetPosAndIMU();
         pinpoint.update();
-        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 58.5332, 133.3355,
-                AngleUnit.DEGREES, 270));
+        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 72, 72,
+                AngleUnit.DEGREES, 0));
         pinpoint.update();
 
         leftFront = hardwareMap.get(DcMotor.class, NameConstants.LEFT_FRONT_MOTOR);
