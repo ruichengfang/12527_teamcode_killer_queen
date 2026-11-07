@@ -12,12 +12,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
-<<<<<<< HEAD:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subSystems/servo.java
-/** 基于 Pinpoint 场地坐标的双 Hive 云台自瞄。 */
-public class servo {
-=======
 public class TurretSubsystem {
->>>>>>> 615cbc26a9b7eb324187e0c7060f7ea28532f84f:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystem/TurretSubsystem.java
 
     /* ==================== 云台参数 ==================== */
     private static final double TURRET_INIT = 0.5; // 舵机初始中位位置
@@ -56,7 +51,6 @@ public class TurretSubsystem {
     private boolean prevStart;
     private boolean prevX;
 
-<<<<<<< HEAD:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subSystems/servo.java
     private boolean needSetStartPos = true;
     private double pinX = START_X_IN;
     private double pinY = START_Y_IN;
@@ -72,40 +66,11 @@ public class TurretSubsystem {
     private double lastValidAimTargetDeg = 0.0;
     private boolean turretReachable = true;
 
-    public servo(HardwareMap hardwareMap) {
+    public TurretSubsystem(HardwareMap hardwareMap) {
         turretLeft = hardwareMap.get(Servo.class, NameConstants.SERVO_LEFT);
         turretRight = hardwareMap.get(Servo.class, NameConstants.SERVO_RIGHT);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, NameConstants.OD);
         setBothPosition(TURRET_INIT);
-=======
-    // 使用 FTC SDK 舵机类型
-    private com.qualcomm.robotcore.hardware.Servo servoL;
-    private com.qualcomm.robotcore.hardware.Servo servoR;
-
-    /**
-     * 初始化两个舵机和 Pinpoint。
-     * 注意：这里只读取 od 轮反馈的角度，不会调用 resetPosAndIMU，
-     * 以免清零底盘正在使用的定位数据。
-     */
-    public TurretSubsystem(HardwareMap hardwareMap) {
-
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, OD_NAME);
-
-        servoL = hardwareMap.get(
-                com.qualcomm.robotcore.hardware.Servo.class,
-                SERVO_LEFT_NAME
-        );
-
-        servoR = hardwareMap.get(
-                com.qualcomm.robotcore.hardware.Servo.class,
-                SERVO_RIGHT_NAME
-        );
-
-        // 初始化时，让两个舵机来到150°中位
-        setBothPosition(
-                SERVO_CENTER_DEG / SERVO_TRAVEL_DEG
-        );
->>>>>>> 615cbc26a9b7eb324187e0c7060f7ea28532f84f:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystem/TurretSubsystem.java
     }
 
     /** 在 waitForStart() 后调用，复位按键边沿和云台状态。 */
@@ -132,42 +97,11 @@ public class TurretSubsystem {
     }
 
     /**
-<<<<<<< HEAD:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subSystems/servo.java
      * 每圈调用一次。
      * X：切换双 Hive 自瞄；dpad 左右：微调 2°；START：重置定位和云台。
      * 自瞄目标超出舵机行程时，手柄持续震动提醒。
      */
     public void update(Gamepad gamepad, Telemetry telemetry) {
-=======
-     * 在RobotTeleOp主循环中反复调用。
-     *
-     * @param toZero 三角键Y：按住时两个舵机转到0
-     * @param toOne  圆圈键B：按住时两个舵机转到1
-     * @param reset   回中：两个舵机转到0.5（150°中位）
-     *
-     * 没有按下按键时，执行 od 角度自动反向补偿。
-     * 如果两个按键同时按下，toZero优先。
-     */
-    public void update(boolean toZero, boolean toOne, boolean reset) {
-
-        // 手动控制优先于自动控制
-        if (toZero) {
-            setBothPosition(0.0);
-            return;
-        }
-
-        if (toOne) {
-            setBothPosition(1.0);
-            return;
-        }
-
-        if (reset) {
-            setBothPosition(0.5);
-            return;
-        }
-
-        // 读取 od 轮反馈的、相对初始方向的转角
->>>>>>> 615cbc26a9b7eb324187e0c7060f7ea28532f84f:TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystem/TurretSubsystem.java
         pinpoint.update();
 
         GoBildaPinpointDriver.DeviceStatus status = pinpoint.getDeviceStatus();
