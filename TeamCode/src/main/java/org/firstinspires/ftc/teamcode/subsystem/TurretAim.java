@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subSystems;
+package org.firstinspires.ftc.teamcode.subsystem;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -23,7 +23,7 @@ import org.firstinspires.ftc.teamcode.NameConstants;
  * 注意：主程序必须在 init 时用 pinpoint.setPosition() 设置
  * 真实的起始场地坐标，否则解算出的方向不准。
  */
-public class turretAim {
+public class TurretAim {
 
     private static final String SERVO_LEFT_NAME = NameConstants.SERVO_LEFT;
     private static final String SERVO_RIGHT_NAME = NameConstants.SERVO_RIGHT;
@@ -49,7 +49,7 @@ public class turretAim {
     private double relativeDeg = 0;
     private double servoPosition = 0.5;
 
-    public turretAim(HardwareMap hardwareMap) {
+    public TurretAim(HardwareMap hardwareMap) {
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, OD_NAME);
         servoL = hardwareMap.get(
                 com.qualcomm.robotcore.hardware.Servo.class, SERVO_LEFT_NAME);

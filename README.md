@@ -1,3 +1,8 @@
+## 机器人项目说明 / Team robot documentation
+
+- [中文与英文项目入口 / Chinese and English TeamCode README](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/readme.md)
+- [程序说明 / Program guide](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/PROGRAM_GUIDE.md)
+
 ## NOTICE
 
 This repository contains the public FTC SDK for the DECODE (2025-2026) competition season.

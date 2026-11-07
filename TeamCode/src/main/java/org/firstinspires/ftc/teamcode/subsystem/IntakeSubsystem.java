@@ -1,11 +1,11 @@
-package org.firstinspires.ftc.teamcode.subSystems;
+package org.firstinspires.ftc.teamcode.subsystem;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.NameConstants;
 
-public class inTake {
+public class IntakeSubsystem {
     private String intakeName = NameConstants.INTAKE_MOTOR;
     private String transitName =  NameConstants.TRANSIT_MOTOR;
 
@@ -13,7 +13,7 @@ public class inTake {
     private DcMotor transitMotor;
 
     // 构造器：new 的时候传入 hardwareMap
-    public inTake(HardwareMap hw) {
+    public IntakeSubsystem(HardwareMap hw) {
         intakeMotor = hw.get(DcMotor.class, intakeName);
         transitMotor = hw.get(DcMotor.class, transitName);
     }

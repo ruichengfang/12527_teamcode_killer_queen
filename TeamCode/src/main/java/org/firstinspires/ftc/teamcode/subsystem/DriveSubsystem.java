@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subSystems;
+package org.firstinspires.ftc.teamcode.subsystem;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;

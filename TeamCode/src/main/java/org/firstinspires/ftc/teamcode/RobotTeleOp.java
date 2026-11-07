@@ -3,17 +3,17 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.commands.DriveCommand;
-import org.firstinspires.ftc.teamcode.subSystems.DriveSubsystem;
-import org.firstinspires.ftc.teamcode.subSystems.inTake;
-import org.firstinspires.ftc.teamcode.subSystems.servo;
+import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
 @TeleOp(name = "Mecanum Drive", group = "Drive")
-public class MecanumDrive extends LinearOpMode {
+public class RobotTeleOp extends LinearOpMode {
     @Override
     public void runOpMode() {
         // 保留进料硬件初始化；进料控制目前未启用。
-        inTake intake = new inTake(hardwareMap);
-        servo turret = new servo(hardwareMap);
+        IntakeSubsystem intake = new IntakeSubsystem(hardwareMap);
+        TurretSubsystem turret = new TurretSubsystem(hardwareMap);
         DriveSubsystem drive = new DriveSubsystem(hardwareMap);
         DriveCommand driveCommand = new DriveCommand(drive, gamepad1);
 
