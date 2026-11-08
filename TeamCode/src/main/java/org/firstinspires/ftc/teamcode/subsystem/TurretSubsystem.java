@@ -1,153 +1,288 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.util.Range;
-
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.NameConstants;
 
+/** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
 public class TurretSubsystem {
+    public static final double INIT_POSITION = 0.5;
+    public static final double SOFT_LIMIT_DEG = 90.0;
+    public static final double MANUAL_STEP_DEG = 2.0;
 
-    // 硬件配置名称（角度来源：od = Pinpoint 定位，不再使用 IMU）
-    private static final String SERVO_LEFT_NAME = NameConstants.SERVO_LEFT;
-    private static final String SERVO_RIGHT_NAME = NameConstants.SERVO_RIGHT;
-    private static final String OD_NAME = NameConstants.OD;
+    private static final double SERVO_RANGE_DEG = 300.0;
+    private static final double SOFT_HALF_POSITION = SOFT_LIMIT_DEG / SERVO_RANGE_DEG;
+    private static final double DEADBAND_DEG = 0.5;
+    private static final double MECHANICAL_RATIO = 0.98;
+    private static final double TURRET_SIGN = 1.0;
+    private static final double MOUNT_OFFSET_DEG = 180.0;
 
-    // 300°舵机参数
-    private static final double SERVO_TRAVEL_DEG = 300.0;
-    private static final double SERVO_CENTER_DEG = 150.0;
+    private static final double AIM_POINT_X_IN = 60.0;
+    private static final double AIM_POINT_Y_HIGH_IN = 84.0;
+    private static final double AIM_POINT_Y_LOW_IN = 60.0;
+    private static final double AIM_SWITCH_Y_IN = 72.0;
+    private static final double AIM_SWITCH_HYSTERESIS_IN = 1.0;
+    private static final double AIM_MIN_DISTANCE_IN = 0.5;
 
-    // 如果自动补偿方向相反，将1.0改成-1.0
-    private static final double SERVO_DIRECTION = 1.0;
+    private final Servo leftServo;
+    private final Servo rightServo;
 
-    // 同步带传动比：147:150 = 0.98（舵机转角 × 0.98 = 云台实际转角）
-    // 因此补偿时舵机需要多转一点：补偿角 ÷ 0.98
-    private static final double GEAR_RATIO = 147.0 / 150.0;
+    private double position = INIT_POSITION;
+    private double targetYawDeg = LocalizationSubsystem.START_HEADING_DEG;
+    private double aimOffsetDeg;
+    private boolean aimMode;
+    private boolean lockMode;
 
-    private GoBildaPinpointDriver pinpoint;
+    private double aimDistance;
+    private double aimTargetDeg;
+    private double aimTargetX = AIM_POINT_X_IN;
+    private double aimTargetY = AIM_POINT_Y_LOW_IN;
+    private boolean hasValidAim;
+    private double lastValidAimTargetDeg;
+    private boolean reachable = true;
+    private double yawErrorDeg;
+    private double effectiveTargetDeg;
+    private double actualAbsoluteDeg;
+    private double rawPosition = INIT_POSITION;
 
-    // start() 时记录的初始朝向（度），用于计算相对转角
-    private double headingOffsetDeg = 0;
-
-    // 使用 FTC SDK 舵机类型
-    private com.qualcomm.robotcore.hardware.Servo servoL;
-    private com.qualcomm.robotcore.hardware.Servo servoR;
-
-    /**
-     * 初始化两个舵机和 Pinpoint。
-     * 注意：这里只读取 od 轮反馈的角度，不会调用 resetPosAndIMU，
-     * 以免清零底盘正在使用的定位数据。
-     */
     public TurretSubsystem(HardwareMap hardwareMap) {
-
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, OD_NAME);
-
-        servoL = hardwareMap.get(
-                com.qualcomm.robotcore.hardware.Servo.class,
-                SERVO_LEFT_NAME
-        );
-
-        servoR = hardwareMap.get(
-                com.qualcomm.robotcore.hardware.Servo.class,
-                SERVO_RIGHT_NAME
-        );
-
-        // 初始化时，让两个舵机来到150°中位
-        setBothPosition(
-                SERVO_CENTER_DEG / SERVO_TRAVEL_DEG
-        );
+        leftServo = hardwareMap.get(Servo.class, NameConstants.TURRET_LEFT);
+        rightServo = hardwareMap.get(Servo.class, NameConstants.TURRET_RIGHT);
+        setServoPositions(INIT_POSITION);
     }
 
-    /**
-     * 在waitForStart()之后调用。
-     * 将正式开始时 od 轮反馈的朝向设为初始方向。
-     */
-    public void start() {
-
-        pinpoint.update();
-        headingOffsetDeg = pinpoint.getHeading(AngleUnit.DEGREES);
-
-        setBothPosition(
-                SERVO_CENTER_DEG / SERVO_TRAVEL_DEG
-        );
+    public boolean toggleAimMode(boolean pinpointReady) {
+        if (!pinpointReady) {
+            return false;
+        }
+        aimMode = !aimMode;
+        if (aimMode) {
+            lockMode = false;
+        }
+        hasValidAim = false;
+        lastValidAimTargetDeg = 0.0;
+        return true;
     }
 
-    /**
-     * 在RobotTeleOp主循环中反复调用。
-     *
-     * @param toZero 三角键Y：按住时两个舵机转到0
-     * @param toOne  圆圈键B：按住时两个舵机转到1
-     * @param reset   回中：两个舵机转到0.5（150°中位）
-     *
-     * 没有按下按键时，执行 od 角度自动反向补偿。
-     * 如果两个按键同时按下，toZero优先。
-     */
-    public void update(boolean toZero, boolean toOne, boolean reset) {
+    public void toggleLockMode(double robotYawDeg) {
+        lockMode = !lockMode;
+        if (lockMode) {
+            aimMode = false;
+            hasValidAim = false;
+            targetYawDeg = normalizeDegrees(robotYawDeg + MOUNT_OFFSET_DEG
+                    + TURRET_SIGN * (position - INIT_POSITION)
+                    * SERVO_RANGE_DEG / MECHANICAL_RATIO);
+        }
+    }
 
-        // 手动控制优先于自动控制
-        if (toZero) {
-            setBothPosition(0.0);
-            return;
+    public void adjustLeft() {
+        if (aimMode) {
+            aimOffsetDeg = normalizeDegrees(aimOffsetDeg + MANUAL_STEP_DEG);
+        } else if (lockMode) {
+            targetYawDeg = normalizeDegrees(targetYawDeg + MANUAL_STEP_DEG);
+        }
+    }
+
+    public void adjustRight() {
+        if (aimMode) {
+            aimOffsetDeg = normalizeDegrees(aimOffsetDeg - MANUAL_STEP_DEG);
+        } else if (lockMode) {
+            targetYawDeg = normalizeDegrees(targetYawDeg - MANUAL_STEP_DEG);
+        }
+    }
+
+    public void reset() {
+        targetYawDeg = LocalizationSubsystem.START_HEADING_DEG;
+        aimOffsetDeg = 0.0;
+        hasValidAim = false;
+        lastValidAimTargetDeg = 0.0;
+        aimMode = false;
+        lockMode = false;
+    }
+
+    public void update(LocalizationSubsystem localization) {
+        double yawRad = localization.getYawRadians();
+        double yawDeg = Math.toDegrees(yawRad);
+
+        if (localization.isPinpointReady()) {
+            updateAimPoint(localization.getYIn());
         }
 
-        if (toOne) {
-            setBothPosition(1.0);
-            return;
+        yawErrorDeg = 0.0;
+        effectiveTargetDeg = 0.0;
+        actualAbsoluteDeg = 0.0;
+        rawPosition = INIT_POSITION;
+        reachable = true;
+
+        if (aimMode && localization.isPinpointReady()) {
+            updateAutoAim(localization, yawRad, yawDeg);
+        } else if (lockMode) {
+            updateLock(yawRad, yawDeg);
+            updateAimDistance(localization);
+        } else {
+            position = INIT_POSITION;
+            rawPosition = INIT_POSITION;
+            actualAbsoluteDeg = normalizeDegrees(yawDeg + MOUNT_OFFSET_DEG);
+            updateAimDistance(localization);
         }
 
-        if (reset) {
-            setBothPosition(0.5);
-            return;
+        setServoPositions(position);
+    }
+
+    private void updateAimPoint(double robotYIn) {
+        if (aimTargetY == AIM_POINT_Y_LOW_IN) {
+            if (robotYIn > AIM_SWITCH_Y_IN + AIM_SWITCH_HYSTERESIS_IN) {
+                aimTargetY = AIM_POINT_Y_HIGH_IN;
+            }
+        } else if (robotYIn < AIM_SWITCH_Y_IN - AIM_SWITCH_HYSTERESIS_IN) {
+            aimTargetY = AIM_POINT_Y_LOW_IN;
+        }
+    }
+
+    private void updateAutoAim(LocalizationSubsystem localization, double yawRad, double yawDeg) {
+        double dx = aimTargetX - localization.getXIn();
+        double dy = aimTargetY - localization.getYIn();
+        aimDistance = Math.hypot(dx, dy);
+
+        if (aimDistance > AIM_MIN_DISTANCE_IN) {
+            aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
+            lastValidAimTargetDeg = aimTargetDeg;
+            hasValidAim = true;
+            targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
+        } else if (hasValidAim) {
+            aimTargetDeg = lastValidAimTargetDeg;
+            targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
+        } else {
+            double currentAbsoluteDeg = getCurrentAbsoluteDegrees(yawDeg);
+            targetYawDeg = currentAbsoluteDeg;
+            aimTargetDeg = normalizeDegrees(currentAbsoluteDeg - aimOffsetDeg);
         }
 
-        // 读取 od 轮反馈的、相对初始方向的转角
-        pinpoint.update();
-        double robotYawDeg = normalizeAngle(
-                pinpoint.getHeading(AngleUnit.DEGREES) - headingOffsetDeg
-        );
-
-        // 舵机向机器人旋转的反方向补偿
-        double compensationDeg = -robotYawDeg;
-
-        double rawServoTargetDeg =
-                SERVO_CENTER_DEG
-                        + SERVO_DIRECTION * compensationDeg / GEAR_RATIO;
-
-        // 限制在300°舵机的机械行程内
-        double servoTargetDeg = Range.clip(
-                rawServoTargetDeg,
-                0.0,
-                SERVO_TRAVEL_DEG
-        );
-
-        // 将0～300°转换成setPosition需要的0～1
-        double servoPosition =
-                servoTargetDeg / SERVO_TRAVEL_DEG;
-
-        setBothPosition(servoPosition);
+        updateServoTarget(yawRad, yawDeg);
     }
 
-    /**
-     * 两个同向舵机接收相同的位置命令。
-     */
-    private void setBothPosition(double position) {
-
-        double safePosition = Range.clip(
-                position,
-                0.0,
-                1.0
-        );
-
-        servoL.setPosition(safePosition);
-        servoR.setPosition(safePosition);
+    private void updateLock(double yawRad, double yawDeg) {
+        updateServoTarget(yawRad, yawDeg);
     }
 
-    /** 角度归一化到 [-180, 180]，防止 od 累计圈数导致舵机打满。 */
-    private double normalizeAngle(double angle) {
-        while (angle > 180)   angle -= 360;
-        while (angle <= -180) angle += 360;
+    private void updateServoTarget(double yawRad, double yawDeg) {
+        effectiveTargetDeg = normalizeDegrees(targetYawDeg + MOUNT_OFFSET_DEG);
+        double targetRad = Math.toRadians(effectiveTargetDeg);
+        yawErrorDeg = Math.toDegrees(normalizeRadians(targetRad - yawRad));
+        if (Math.abs(yawErrorDeg) < DEADBAND_DEG) {
+            yawErrorDeg = 0.0;
+        }
+
+        double relativeDeg = TURRET_SIGN * yawErrorDeg / MECHANICAL_RATIO;
+        rawPosition = INIT_POSITION + relativeDeg / SERVO_RANGE_DEG;
+        reachable = Math.abs(rawPosition - INIT_POSITION) <= SOFT_HALF_POSITION;
+        position = clamp(rawPosition,
+                INIT_POSITION - SOFT_HALF_POSITION,
+                INIT_POSITION + SOFT_HALF_POSITION);
+        actualAbsoluteDeg = getCurrentAbsoluteDegrees(yawDeg);
+    }
+
+    private double getCurrentAbsoluteDegrees(double robotYawDeg) {
+        return normalizeDegrees(robotYawDeg + MOUNT_OFFSET_DEG
+                + TURRET_SIGN * (position - INIT_POSITION)
+                * SERVO_RANGE_DEG / MECHANICAL_RATIO);
+    }
+
+    private void updateAimDistance(LocalizationSubsystem localization) {
+        if (localization.isPinpointReady()) {
+            aimDistance = Math.hypot(
+                    aimTargetX - localization.getXIn(),
+                    aimTargetY - localization.getYIn());
+        }
+    }
+
+    private void setServoPositions(double position) {
+        leftServo.setPosition(position);
+        rightServo.setPosition(position);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static double normalizeRadians(double angle) {
+        while (angle > Math.PI) {
+            angle -= 2.0 * Math.PI;
+        }
+        while (angle < -Math.PI) {
+            angle += 2.0 * Math.PI;
+        }
         return angle;
+    }
+
+    public static double normalizeDegrees(double angle) {
+        while (angle > 180.0) {
+            angle -= 360.0;
+        }
+        while (angle < -180.0) {
+            angle += 360.0;
+        }
+        return angle;
+    }
+
+    public boolean isAimMode() {
+        return aimMode;
+    }
+
+    public boolean isLockMode() {
+        return lockMode;
+    }
+
+    public double getPosition() {
+        return position;
+    }
+
+    public double getTargetYawDeg() {
+        return targetYawDeg;
+    }
+
+    public double getActualAbsoluteDeg() {
+        return actualAbsoluteDeg;
+    }
+
+    public double getYawErrorDeg() {
+        return yawErrorDeg;
+    }
+
+    public boolean isReachable() {
+        return reachable;
+    }
+
+    public double getAimDistance() {
+        return aimDistance;
+    }
+
+    public double getAimTargetDeg() {
+        return aimTargetDeg;
+    }
+
+    public double getAimTargetX() {
+        return aimTargetX;
+    }
+
+    public double getAimTargetY() {
+        return aimTargetY;
+    }
+
+    public double getAimOffsetDeg() {
+        return aimOffsetDeg;
+    }
+
+    public boolean hasValidAim() {
+        return hasValidAim;
+    }
+
+    public double getMinServoPosition() {
+        return INIT_POSITION - SOFT_HALF_POSITION;
+    }
+
+    public double getMaxServoPosition() {
+        return INIT_POSITION + SOFT_HALF_POSITION;
     }
 }
