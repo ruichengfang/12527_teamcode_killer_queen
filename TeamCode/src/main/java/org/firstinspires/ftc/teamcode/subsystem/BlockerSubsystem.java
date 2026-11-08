@@ -7,9 +7,9 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 发射通道挡板。 */
 public class BlockerSubsystem {
-    private static final double CLOSED_POSITION = 0.095;
-    // TODO 实机测量打开位置；原程序中 OPEN 与 CLOSED 相同，当前不会改变舵机行程。
-    private static final double OPEN_POSITION = 0.095;
+    // 恢复此前程序中的位置，需根据实物确认行程是否足够。
+    private static final double CLOSED_POSITION = 0.11;
+    private static final double OPEN_POSITION = 0.10;
 
     private final Servo blockerServo;
     private boolean open;

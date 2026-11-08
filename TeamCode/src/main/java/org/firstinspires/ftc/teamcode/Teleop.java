@@ -64,7 +64,7 @@ public class Teleop extends OpMode {
         telemetry.addLine("【云台】D-pad 左/右：自瞄偏移或锁定角 +2°/-2°；X/Y 互斥");
         telemetry.addLine("【云台】普通模式回中 0.5；软限位 ±90°（位置 0.2~0.8）");
         telemetry.addLine("【Shooter】A：3300 RPM 开/关");
-        telemetry.addLine("【Blocker】LB：打开/关闭（当前两个位置均为 0.095，需实机校准）");
+        telemetry.addLine("【Blocker】LB：打开/关闭（位置需实机校准）");
         telemetry.addLine("【Intake】RB 按住：仅 Intake 全速正转，Transit 停止");
         telemetry.addLine("【Intake】RT/LT 按住：Intake + Transit 正转/反转，力度随扳机");
         telemetry.addLine("【优先级】RB > RT > LT；全部松开则 Intake + Transit 停止");

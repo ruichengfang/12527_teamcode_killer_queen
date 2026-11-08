@@ -1,10 +1,15 @@
 ## TeamCode Module
 
+### 本队程序与 Pedro 调参
+
+当前手动控制入口为 `Teleop.java`，驾驶站名称为 `KillerQueen`。底盘与定位分别由 `subsystem/DriveSubsystem.java` 和 `subsystem/LocalizationSubsystem.java` 管理。
+
+Pedro 3 的麦克纳姆底盘、Pinpoint 和 Foresight 调参结果记录在 [Pedro 3 调参记录](../../../../../../../../doc/Pedro3调参记录.md)。`AutoPath` 自动模式使用这些参数；TeleOp 独立使用自己的定位配置，其 Pinpoint 偏移与 Pedro 调参结果不同，详情见记录。
+
 Welcome!
 
 This module, TeamCode, is the place where you will write/paste the code for your team's
-robot controller App. This module is currently empty (a clean slate) but the
-process for adding OpModes is straightforward.
+robot controller App. The instructions below describe how to add OpModes from SDK samples.
 
 ## Creating your own OpModes
 

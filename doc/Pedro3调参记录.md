@@ -2,7 +2,13 @@
 
 记录日期：2026-11-08。适用于本机器人的麦克纳姆底盘和 goBILDA Pinpoint。
 
-独立 Pedro 项目：`C:\Users\ruich\Desktop\coding\FRC\5449\PedroPathing3\PedroPathing3-Quickstart\Quickstart-master`。完整可执行配置保存在该项目的 `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/Constants.java`。
+完整可执行配置位于本项目的 `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/Constants.java`。调参时使用的独立 Pedro 项目仍位于 `C:\Users\ruich\Desktop\coding\FRC\5449\PedroPathing3\PedroPathing3-Quickstart\Quickstart-master`。
+
+## 与当前程序的关系
+
+当前仓库使用 FTC SDK 12.0，驾驶站手动控制入口为 `KillerQueen`（`Teleop.java`）。底盘、定位、发射、进料、云台和挡板分别由子系统管理；底盘场地坐标驾驶使用 Control Hub IMU 的航向。`AutoPath` 自动模式使用 Pedro 3、Ivy 和下面的参数；这些 Foresight 参数不会自动影响当前 TeleOp。
+
+当前 `LocalizationSubsystem.java` 给 Pinpoint 设置的偏移为 `(20.0, -135.2)` 毫米；下面 Pedro 自动调参得到的偏移为 `(0.35498074659212364, -5.000615457850178)` 英寸，约 `(9.0165, -127.0156)` 毫米。两组数值不相同，应用前应核对测量过程和坐标约定，并通过实机定位测试验证。当前 TeleOp 的起始位置 `(8, 111)` 英寸、航向 `0°` 是场地起点，不是 Pinpoint 硬件偏移。
 
 ## 底盘
 
@@ -38,4 +44,4 @@
 
 ## 验证状态
 
-项目已通过 Gradle 编译。对话中尚未确认包含这些最终参数的新版程序已上传到机器人，也未确认 Pose Test 和 Line Test 的结果；需要实机验证。
+自动路线从 `(59.75, 6.75, 90°)` 开始，经 `(60, 20.7869, 90°)`、`(60, 109.75, 90°)` 到 `(15, 110, 180°)`。第三段以 `(60, 109.75, 180°)` 为起点，航向目标在段间从 90° 跳至 180°，可能一边转向一边行驶；它不保证先原地转完。尚未确认上传或实机验证；先在空旷场地验证定位和运动，并准备停止。
