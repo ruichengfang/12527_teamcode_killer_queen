@@ -1,77 +1,91 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+
 import org.firstinspires.ftc.teamcode.NameConstants;
 
-/** 麦轮底盘及其 Pinpoint 定位。 */
+/** 四轮麦克纳姆底盘。 */
 public class DriveSubsystem {
-    private static final double X_FACTOR = 1.1;
-    private final DcMotor leftFront, leftBack, rightFront, rightBack;
-    private final GoBildaPinpointDriver pinpoint;
-    private double headingOffset;
+    private final DcMotorEx frontLeft;
+    private final DcMotorEx backLeft;
+    private final DcMotorEx frontRight;
+    private final DcMotorEx backRight;
+
+    private double frontLeftPower;
+    private double backLeftPower;
+    private double frontRightPower;
+    private double backRightPower;
 
     public DriveSubsystem(HardwareMap hardwareMap) {
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, NameConstants.OD);
-        pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
-                GoBildaPinpointDriver.EncoderDirection.FORWARD);
-        pinpoint.setOffsets(-20, -135.2, DistanceUnit.MM);
-        pinpoint.resetPosAndIMU();
-        pinpoint.update();
-        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, 72, 72,
-                AngleUnit.DEGREES, 0));
-        pinpoint.update();
+        frontLeft = hardwareMap.get(DcMotorEx.class, NameConstants.FRONT_LEFT);
+        backLeft = hardwareMap.get(DcMotorEx.class, NameConstants.BACK_LEFT);
+        frontRight = hardwareMap.get(DcMotorEx.class, NameConstants.FRONT_RIGHT);
+        backRight = hardwareMap.get(DcMotorEx.class, NameConstants.BACK_RIGHT);
 
-        leftFront = hardwareMap.get(DcMotor.class, NameConstants.LEFT_FRONT_MOTOR);
-        leftBack = hardwareMap.get(DcMotor.class, NameConstants.LEFT_BACK_MOTOR);
-        rightFront = hardwareMap.get(DcMotor.class, NameConstants.RIGHT_FRONT_MOTOR);
-        rightBack = hardwareMap.get(DcMotor.class, NameConstants.RIGHT_BACK_MOTOR);
-        leftFront.setDirection(DcMotor.Direction.REVERSE);
-        leftBack.setDirection(DcMotor.Direction.REVERSE);
+        configureMotor(frontLeft, DcMotor.Direction.REVERSE);
+        configureMotor(backLeft, DcMotor.Direction.REVERSE);
+        configureMotor(frontRight, DcMotor.Direction.FORWARD);
+        configureMotor(backRight, DcMotor.Direction.FORWARD);
     }
 
-    public void updateHeading() { pinpoint.update(); }
-
-    public void resetFieldHeading() {
-        headingOffset = pinpoint.getHeading(AngleUnit.RADIANS);
+    private static void configureMotor(DcMotorEx motor, DcMotor.Direction direction) {
+        motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor.setDirection(direction);
     }
 
-    private double relativeHeading() {
-        double heading = pinpoint.getHeading(AngleUnit.RADIANS) - headingOffset;
-        while (heading > Math.PI) heading -= 2 * Math.PI;
-        while (heading <= -Math.PI) heading += 2 * Math.PI;
-        return heading;
-    }
+    /** 输入均为场地坐标系，forward 正值向前，strafe 正值向右。 */
+    public void driveFieldCentric(double forward, double strafe, double turn, double yawRadians) {
+        double cos = Math.cos(yawRadians);
+        double sin = Math.sin(yawRadians);
 
-    public double getRelativeHeadingDegrees() { return Math.toDegrees(relativeHeading()); }
+        double robotStrafe = strafe * cos + forward * sin;
+        double robotForward = -strafe * sin + forward * cos;
 
-    public Object getDeviceStatus() { return pinpoint.getDeviceStatus(); }
+        double fl = robotForward + robotStrafe + turn;
+        double fr = robotForward - robotStrafe - turn;
+        double bl = robotForward - robotStrafe + turn;
+        double br = robotForward + robotStrafe - turn;
 
-    public void driveFieldCentric(double x, double y, double rotation) {
-        double direction = Math.atan2(y, x) - relativeHeading();
-        double magnitude = Math.hypot(x, y);
-        double x2 = magnitude * Math.cos(direction) * X_FACTOR;
-        double y2 = magnitude * Math.sin(direction);
-        double fl = y2 + x2 + rotation;
-        double bl = y2 - x2 + rotation;
-        double fr = y2 - x2 - rotation;
-        double br = y2 + x2 - rotation;
-        double max = Math.max(1.0, Math.max(Math.abs(fl), Math.max(Math.abs(bl),
-                Math.max(Math.abs(fr), Math.abs(br)))));
-        leftFront.setPower(fl / max);
-        leftBack.setPower(bl / max);
-        rightFront.setPower(fr / max);
-        rightBack.setPower(br / max);
+        double max = Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
+                Math.max(Math.abs(bl), Math.abs(br)));
+        if (max > 1.0) {
+            fl /= max;
+            fr /= max;
+            bl /= max;
+            br /= max;
+        }
+
+        frontLeftPower = fl;
+        backLeftPower = bl;
+        frontRightPower = fr;
+        backRightPower = br;
+
+        frontLeft.setPower(fl);
+        backLeft.setPower(bl);
+        frontRight.setPower(fr);
+        backRight.setPower(br);
     }
 
     public void stop() {
-        leftFront.setPower(0);
-        leftBack.setPower(0);
-        rightFront.setPower(0);
-        rightBack.setPower(0);
+        driveFieldCentric(0.0, 0.0, 0.0, 0.0);
+    }
+
+    public double getFrontLeftPower() {
+        return frontLeftPower;
+    }
+
+    public double getBackLeftPower() {
+        return backLeftPower;
+    }
+
+    public double getFrontRightPower() {
+        return frontRightPower;
+    }
+
+    public double getBackRightPower() {
+        return backRightPower;
     }
 }

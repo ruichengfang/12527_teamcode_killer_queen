@@ -1,52 +1,46 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.NameConstants;
 
+/** Intake 与 Transit 的联合输送机构。 */
 public class IntakeSubsystem {
-    private String intakeName = NameConstants.INTAKE_MOTOR;
-    private String transitName =  NameConstants.TRANSIT_MOTOR;
+    private final DcMotorEx intakeMotor;
+    private final DcMotorEx transitMotor;
 
-    private DcMotor intakeMotor;   // private：外部不许直接碰
-    private DcMotor transitMotor;
+    private double intakePower;
+    private double transitPower;
 
-    // 构造器：new 的时候传入 hardwareMap
-    public IntakeSubsystem(HardwareMap hw) {
-        intakeMotor = hw.get(DcMotor.class, intakeName);
-        transitMotor = hw.get(DcMotor.class, transitName);
+    public IntakeSubsystem(HardwareMap hardwareMap) {
+        intakeMotor = hardwareMap.get(DcMotorEx.class, NameConstants.INTAKE);
+        transitMotor = hardwareMap.get(DcMotorEx.class, NameConstants.TRANSIT);
+
+        intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        transitMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        transitMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        transitMotor.setDirection(DcMotor.Direction.REVERSE);
     }
 
-    // 对外只暴露"意图"，隐藏实现
-    public void intake()  {
-        intakeMotor.setPower(1.0);
-        transitMotor.setPower(-1.0);
+    public void setPowers(double intakePower, double transitPower) {
+        this.intakePower = intakePower;
+        this.transitPower = transitPower;
+        intakeMotor.setPower(intakePower);
+        transitMotor.setPower(transitPower);
     }
 
-    public void outtake() {
-        intakeMotor.setPower(-1.0);
-        transitMotor.setPower(1.0);
-    }
-
-    public void constant() {
-        intakeMotor.setPower(0.4);
-    }
-
-    /** 设置串联进料功率，正值进料、负值退料。 */
-    public void setPower(double power) {
-        intakeMotor.setPower(power);
-        transitMotor.setPower(-power);
-    }
-
-    /** 只驱动 intake，transit 保持停止。 */
-    public void setIntakeOnly(double power) {
-        intakeMotor.setPower(power);
-        transitMotor.setPower(0.0);
-    }
-
-    /** 停止 intake 和 transit，供自动程序结束时调用。 */
     public void stop() {
-        setPower(0.0);
+        setPowers(0.0, 0.0);
+    }
+
+    public double getIntakePower() {
+        return intakePower;
+    }
+
+    public double getTransitPower() {
+        return transitPower;
     }
 }

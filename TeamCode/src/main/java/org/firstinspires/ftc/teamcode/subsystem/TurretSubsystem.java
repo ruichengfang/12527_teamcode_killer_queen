@@ -1,264 +1,288 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
-import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
-/** 云台三态控制：常规固定 0.5、X 双 Hive 自瞄、Y 场地方向锁定。 */
+/** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
 public class TurretSubsystem {
+    public static final double INIT_POSITION = 0.5;
+    public static final double SOFT_LIMIT_DEG = 90.0;
+    public static final double MANUAL_STEP_DEG = 2.0;
 
-    private static final double TURRET_INIT = 0.5; // 常规状态的舵机固定位置
-    private static final double TURRET_MIN = 0.0; // 舵机最小位置
-    private static final double TURRET_MAX = 1.0; // 舵机最大位置
-    private static final double TURRET_SERVO_RANGE_DEG = 300.0; // 舵机总行程
-    private static final double TURRET_MANUAL_STEP_DEG = 2.0; // 每次微调角度
-    private static final double TURRET_DEADBAND_DEG = 0.5; // 角度误差死区
-    private static final double TURRET_MECH_RATIO = 0.98; // 同步带传动比 147:150
-    private static final double TURRET_SIGN = 1.0; // 旋转方向，反向时改为 -1.0
-    private static final double TURRET_MOUNT_OFFSET_DEG = 0; // 机械安装偏移角
+    private static final double SERVO_RANGE_DEG = 300.0;
+    private static final double SOFT_HALF_POSITION = SOFT_LIMIT_DEG / SERVO_RANGE_DEG;
+    private static final double DEADBAND_DEG = 0.5;
+    private static final double MECHANICAL_RATIO = 0.98;
+    private static final double TURRET_SIGN = 1.0;
+    private static final double MOUNT_OFFSET_DEG = 180.0;
 
-    private static final double START_X_IN = 72.0; // od 初始 X 坐标
-    private static final double START_Y_IN = 72.0; // od 初始 Y 坐标
-    private static final double START_HEADING_DEG = 0.0; // od 初始朝向
+    private static final double AIM_POINT_X_IN = 60.0;
+    private static final double AIM_POINT_Y_HIGH_IN = 84.0;
+    private static final double AIM_POINT_Y_LOW_IN = 60.0;
+    private static final double AIM_SWITCH_Y_IN = 72.0;
+    private static final double AIM_SWITCH_HYSTERESIS_IN = 1.0;
+    private static final double AIM_MIN_DISTANCE_IN = 0.5;
 
-    private final Servo turretLeft;
-    private final Servo turretRight;
-    private final GoBildaPinpointDriver pinpoint;
-    private final TurretAim turretAim = new TurretAim();
+    private final Servo leftServo;
+    private final Servo rightServo;
 
-    private double turretPos = TURRET_INIT;
-    private double turretTargetYawDeg = START_HEADING_DEG;
+    private double position = INIT_POSITION;
+    private double targetYawDeg = LocalizationSubsystem.START_HEADING_DEG;
+    private double aimOffsetDeg;
+    private boolean aimMode;
+    private boolean lockMode;
 
-    private boolean aimMode = false;
-    private boolean lockMode = false;
-    private boolean prevLeft, prevRight, prevStart, prevX, prevY;
-
-    private boolean needSetStartPos = true;
-    private double pinX = START_X_IN;
-    private double pinY = START_Y_IN;
-    private double pinHeadingDeg = START_HEADING_DEG;
-
-    private boolean turretReachable = true;
-    private double yawErrorDeg = 0.0;
-    private double effectiveTargetDeg = 0.0;
-    private double turretActualAbsDeg = 0.0;
-    private double turretPosRaw = TURRET_INIT;
+    private double aimDistance;
+    private double aimTargetDeg;
+    private double aimTargetX = AIM_POINT_X_IN;
+    private double aimTargetY = AIM_POINT_Y_LOW_IN;
+    private boolean hasValidAim;
+    private double lastValidAimTargetDeg;
+    private boolean reachable = true;
+    private double yawErrorDeg;
+    private double effectiveTargetDeg;
+    private double actualAbsoluteDeg;
+    private double rawPosition = INIT_POSITION;
 
     public TurretSubsystem(HardwareMap hardwareMap) {
-        turretLeft = hardwareMap.get(Servo.class, NameConstants.SERVO_LEFT);
-        turretRight = hardwareMap.get(Servo.class, NameConstants.SERVO_RIGHT);
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, NameConstants.OD);
-        setBothPosition(TURRET_INIT);
+        leftServo = hardwareMap.get(Servo.class, NameConstants.TURRET_LEFT);
+        rightServo = hardwareMap.get(Servo.class, NameConstants.TURRET_RIGHT);
+        setServoPositions(INIT_POSITION);
     }
 
-    public void start() {
-        turretPos = TURRET_INIT;
-        turretTargetYawDeg = START_HEADING_DEG;
+    public boolean toggleAimMode(boolean pinpointReady) {
+        if (!pinpointReady) {
+            return false;
+        }
+        aimMode = !aimMode;
+        if (aimMode) {
+            lockMode = false;
+        }
+        hasValidAim = false;
+        lastValidAimTargetDeg = 0.0;
+        return true;
+    }
+
+    public void toggleLockMode(double robotYawDeg) {
+        lockMode = !lockMode;
+        if (lockMode) {
+            aimMode = false;
+            hasValidAim = false;
+            targetYawDeg = normalizeDegrees(robotYawDeg + MOUNT_OFFSET_DEG
+                    + TURRET_SIGN * (position - INIT_POSITION)
+                    * SERVO_RANGE_DEG / MECHANICAL_RATIO);
+        }
+    }
+
+    public void adjustLeft() {
+        if (aimMode) {
+            aimOffsetDeg = normalizeDegrees(aimOffsetDeg + MANUAL_STEP_DEG);
+        } else if (lockMode) {
+            targetYawDeg = normalizeDegrees(targetYawDeg + MANUAL_STEP_DEG);
+        }
+    }
+
+    public void adjustRight() {
+        if (aimMode) {
+            aimOffsetDeg = normalizeDegrees(aimOffsetDeg - MANUAL_STEP_DEG);
+        } else if (lockMode) {
+            targetYawDeg = normalizeDegrees(targetYawDeg - MANUAL_STEP_DEG);
+        }
+    }
+
+    public void reset() {
+        targetYawDeg = LocalizationSubsystem.START_HEADING_DEG;
+        aimOffsetDeg = 0.0;
+        hasValidAim = false;
+        lastValidAimTargetDeg = 0.0;
         aimMode = false;
         lockMode = false;
-        turretReachable = true;
-        needSetStartPos = true;
-        turretAim.reset();
-
-        prevLeft = false;
-        prevRight = false;
-        prevX = false;
-        prevY = false;
-        prevStart = true;
-        setBothPosition(TURRET_INIT);
     }
 
-    /** 每圈调用；X/Y 模式互斥，START 恢复常规模式并重置 od 起点。 */
-    public void update(Gamepad gamepad, Telemetry telemetry) {
-        updatePinpoint();
-        handleStart(gamepad);
-        handleModeButtons(gamepad);
-        handleManualTrim(gamepad);
+    public void update(LocalizationSubsystem localization) {
+        double yawRad = localization.getYawRadians();
+        double yawDeg = Math.toDegrees(yawRad);
 
-        turretAim.update(pinX, pinY);
+        if (localization.isPinpointReady()) {
+            updateAimPoint(localization.getYIn());
+        }
 
-        if (aimMode) {
-            turretAim.updateBearing(pinX, pinY);
-            double currentAbsDeg = getCurrentTurretAbsDeg();
-            turretTargetYawDeg = turretAim.calculateTargetYawDeg(currentAbsDeg);
-            applyTargetAngle();
+        yawErrorDeg = 0.0;
+        effectiveTargetDeg = 0.0;
+        actualAbsoluteDeg = 0.0;
+        rawPosition = INIT_POSITION;
+        reachable = true;
+
+        if (aimMode && localization.isPinpointReady()) {
+            updateAutoAim(localization, yawRad, yawDeg);
         } else if (lockMode) {
-            applyTargetAngle();
+            updateLock(yawRad, yawDeg);
+            updateAimDistance(localization);
         } else {
-            setNormalState();
+            position = INIT_POSITION;
+            rawPosition = INIT_POSITION;
+            actualAbsoluteDeg = normalizeDegrees(yawDeg + MOUNT_OFFSET_DEG);
+            updateAimDistance(localization);
         }
 
-        setBothPosition(turretPos);
+        setServoPositions(position);
+    }
 
-        if (aimMode && !turretReachable) {
-            gamepad.rumble(0.8, 0.8, 200);
+    private void updateAimPoint(double robotYIn) {
+        if (aimTargetY == AIM_POINT_Y_LOW_IN) {
+            if (robotYIn > AIM_SWITCH_Y_IN + AIM_SWITCH_HYSTERESIS_IN) {
+                aimTargetY = AIM_POINT_Y_HIGH_IN;
+            }
+        } else if (robotYIn < AIM_SWITCH_Y_IN - AIM_SWITCH_HYSTERESIS_IN) {
+            aimTargetY = AIM_POINT_Y_LOW_IN;
+        }
+    }
+
+    private void updateAutoAim(LocalizationSubsystem localization, double yawRad, double yawDeg) {
+        double dx = aimTargetX - localization.getXIn();
+        double dy = aimTargetY - localization.getYIn();
+        aimDistance = Math.hypot(dx, dy);
+
+        if (aimDistance > AIM_MIN_DISTANCE_IN) {
+            aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
+            lastValidAimTargetDeg = aimTargetDeg;
+            hasValidAim = true;
+            targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
+        } else if (hasValidAim) {
+            aimTargetDeg = lastValidAimTargetDeg;
+            targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
         } else {
-            gamepad.stopRumble();
+            double currentAbsoluteDeg = getCurrentAbsoluteDegrees(yawDeg);
+            targetYawDeg = currentAbsoluteDeg;
+            aimTargetDeg = normalizeDegrees(currentAbsoluteDeg - aimOffsetDeg);
         }
 
-        addTelemetry(telemetry);
+        updateServoTarget(yawRad, yawDeg);
     }
 
-    private void updatePinpoint() {
-        pinpoint.update();
-        if (needSetStartPos
-                && pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY) {
-            resetPinpointPosition();
-            needSetStartPos = false;
-        }
-
-        Pose2D pose = pinpoint.getPosition();
-        pinX = pose.getX(DistanceUnit.INCH);
-        pinY = pose.getY(DistanceUnit.INCH);
-        pinHeadingDeg = pinpoint.getHeading(AngleUnit.DEGREES);
+    private void updateLock(double yawRad, double yawDeg) {
+        updateServoTarget(yawRad, yawDeg);
     }
 
-    private void handleModeButtons(Gamepad gamepad) {
-        boolean x = gamepad.x;
-        if (x && !prevX) {
-            aimMode = !aimMode;
-            if (aimMode) lockMode = false;
-            turretAim.clearDirection();
-        }
-        prevX = x;
-
-        boolean y = gamepad.y;
-        if (y && !prevY) {
-            lockMode = !lockMode;
-            if (lockMode) {
-                aimMode = false;
-                turretAim.clearDirection();
-                // 以进入锁定瞬间的云台绝对朝向为目标，避免突然甩动。
-                turretTargetYawDeg = getCurrentTurretAbsDeg();
-            }
-        }
-        prevY = y;
-    }
-
-    private void handleManualTrim(Gamepad gamepad) {
-        boolean left = gamepad.dpad_left;
-        boolean right = gamepad.dpad_right;
-
-        if (left && !prevLeft) {
-            if (aimMode) {
-                turretAim.adjustOffset(TURRET_MANUAL_STEP_DEG);
-            } else if (lockMode) {
-                turretTargetYawDeg = normalizeDeg(
-                        turretTargetYawDeg + TURRET_MANUAL_STEP_DEG);
-            }
-        }
-        if (right && !prevRight) {
-            if (aimMode) {
-                turretAim.adjustOffset(-TURRET_MANUAL_STEP_DEG);
-            } else if (lockMode) {
-                turretTargetYawDeg = normalizeDeg(
-                        turretTargetYawDeg - TURRET_MANUAL_STEP_DEG);
-            }
-        }
-        prevLeft = left;
-        prevRight = right;
-    }
-
-    /** 将场地绝对目标角转换为舵机位置，使用 od 朝向反向补偿。 */
-    private void applyTargetAngle() {
-        effectiveTargetDeg = normalizeDeg(
-                turretTargetYawDeg + TURRET_MOUNT_OFFSET_DEG);
-        yawErrorDeg = normalizeDeg(effectiveTargetDeg - pinHeadingDeg);
-        if (Math.abs(yawErrorDeg) < TURRET_DEADBAND_DEG) {
+    private void updateServoTarget(double yawRad, double yawDeg) {
+        effectiveTargetDeg = normalizeDegrees(targetYawDeg + MOUNT_OFFSET_DEG);
+        double targetRad = Math.toRadians(effectiveTargetDeg);
+        yawErrorDeg = Math.toDegrees(normalizeRadians(targetRad - yawRad));
+        if (Math.abs(yawErrorDeg) < DEADBAND_DEG) {
             yawErrorDeg = 0.0;
         }
 
-        double turretRelativeDeg = TURRET_SIGN * yawErrorDeg / TURRET_MECH_RATIO;
-        turretPosRaw = TURRET_INIT + turretRelativeDeg / TURRET_SERVO_RANGE_DEG;
-        turretReachable = turretPosRaw >= TURRET_MIN && turretPosRaw <= TURRET_MAX;
-        turretPos = Range.clip(turretPosRaw, TURRET_MIN, TURRET_MAX);
-        turretActualAbsDeg = getCurrentTurretAbsDeg();
+        double relativeDeg = TURRET_SIGN * yawErrorDeg / MECHANICAL_RATIO;
+        rawPosition = INIT_POSITION + relativeDeg / SERVO_RANGE_DEG;
+        reachable = Math.abs(rawPosition - INIT_POSITION) <= SOFT_HALF_POSITION;
+        position = clamp(rawPosition,
+                INIT_POSITION - SOFT_HALF_POSITION,
+                INIT_POSITION + SOFT_HALF_POSITION);
+        actualAbsoluteDeg = getCurrentAbsoluteDegrees(yawDeg);
     }
 
-    private void setNormalState() {
-        turretPos = TURRET_INIT;
-        turretPosRaw = TURRET_INIT;
-        turretReachable = true;
-        yawErrorDeg = 0.0;
-        effectiveTargetDeg = 0.0;
-        turretActualAbsDeg = getCurrentTurretAbsDeg();
+    private double getCurrentAbsoluteDegrees(double robotYawDeg) {
+        return normalizeDegrees(robotYawDeg + MOUNT_OFFSET_DEG
+                + TURRET_SIGN * (position - INIT_POSITION)
+                * SERVO_RANGE_DEG / MECHANICAL_RATIO);
     }
 
-    private double getCurrentTurretAbsDeg() {
-        return normalizeDeg(
-                pinHeadingDeg
-                        + TURRET_MOUNT_OFFSET_DEG
-                        + TURRET_SIGN * (turretPos - TURRET_INIT)
-                        * TURRET_SERVO_RANGE_DEG / TURRET_MECH_RATIO);
-    }
-
-    private void handleStart(Gamepad gamepad) {
-        boolean startButton = gamepad.start;
-        if (startButton && !prevStart) {
-            resetPinpointPosition();
-            needSetStartPos = false;
-            pinX = START_X_IN;
-            pinY = START_Y_IN;
-            pinHeadingDeg = START_HEADING_DEG;
-            turretTargetYawDeg = START_HEADING_DEG;
-            aimMode = false;
-            lockMode = false;
-            turretAim.reset();
-        }
-        prevStart = startButton;
-    }
-
-    private void resetPinpointPosition() {
-        pinpoint.setPosition(new Pose2D(
-                DistanceUnit.INCH, START_X_IN, START_Y_IN,
-                AngleUnit.DEGREES, START_HEADING_DEG));
-    }
-
-    private void setBothPosition(double position) {
-        double safePosition = Range.clip(position, TURRET_MIN, TURRET_MAX);
-        turretLeft.setPosition(safePosition);
-        turretRight.setPosition(safePosition);
-    }
-
-    private void addTelemetry(Telemetry telemetry) {
-        String mode = aimMode ? "自瞄 (X 关闭)"
-                : lockMode ? "锁定 (Y 关闭)"
-                : "常规 0.5 (X 自瞄/Y 锁定)";
-
-        telemetry.addData("Pinpoint 状态", pinpoint.getDeviceStatus());
-        telemetry.addData("Pinpoint X/Y (in)", "(%.2f, %.2f)", pinX, pinY);
-        telemetry.addData("Pinpoint Heading (deg)", "%.1f", pinHeadingDeg);
-        telemetry.addData("云台状态", mode);
-        telemetry.addData("云台舵机位置", "%.3f", turretPos);
-        telemetry.addData("云台目标绝对角 (deg)", "%.1f", turretTargetYawDeg);
-        telemetry.addData("云台实际绝对角 (deg)", "%.1f", turretActualAbsDeg);
-        telemetry.addData("云台锁定误差 (deg)", "%.1f", yawErrorDeg);
-        telemetry.addData("云台可达", turretReachable ? "是" : "否（已限幅）");
-
-        if (aimMode) {
-            telemetry.addData("当前 Hive 瞄点 (in)", "(%.1f, %.1f)",
-                    turretAim.getAimTargetX(), turretAim.getAimTargetY());
-            telemetry.addData("自瞄距离 (in)", "%.2f", turretAim.getAimDistance());
-            telemetry.addData("指向瞄点绝对角 (deg)", "%.1f", turretAim.getAimTargetDeg());
-            telemetry.addData("自瞄偏移角 (deg)", "%.1f", turretAim.getAimOffsetDeg());
-            telemetry.addData("有效瞄准已建立", turretAim.hasValidAim() ? "是" : "否");
-            if (!turretAim.hasValidAim()) {
-                telemetry.addLine("距离瞄点太近，方向未定义，请移开机器人");
-            }
+    private void updateAimDistance(LocalizationSubsystem localization) {
+        if (localization.isPinpointReady()) {
+            aimDistance = Math.hypot(
+                    aimTargetX - localization.getXIn(),
+                    aimTargetY - localization.getYIn());
         }
     }
 
-    private static double normalizeDeg(double angle) {
-        while (angle > 180.0) angle -= 360.0;
-        while (angle < -180.0) angle += 360.0;
+    private void setServoPositions(double position) {
+        leftServo.setPosition(position);
+        rightServo.setPosition(position);
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static double normalizeRadians(double angle) {
+        while (angle > Math.PI) {
+            angle -= 2.0 * Math.PI;
+        }
+        while (angle < -Math.PI) {
+            angle += 2.0 * Math.PI;
+        }
         return angle;
+    }
+
+    public static double normalizeDegrees(double angle) {
+        while (angle > 180.0) {
+            angle -= 360.0;
+        }
+        while (angle < -180.0) {
+            angle += 360.0;
+        }
+        return angle;
+    }
+
+    public boolean isAimMode() {
+        return aimMode;
+    }
+
+    public boolean isLockMode() {
+        return lockMode;
+    }
+
+    public double getPosition() {
+        return position;
+    }
+
+    public double getTargetYawDeg() {
+        return targetYawDeg;
+    }
+
+    public double getActualAbsoluteDeg() {
+        return actualAbsoluteDeg;
+    }
+
+    public double getYawErrorDeg() {
+        return yawErrorDeg;
+    }
+
+    public boolean isReachable() {
+        return reachable;
+    }
+
+    public double getAimDistance() {
+        return aimDistance;
+    }
+
+    public double getAimTargetDeg() {
+        return aimTargetDeg;
+    }
+
+    public double getAimTargetX() {
+        return aimTargetX;
+    }
+
+    public double getAimTargetY() {
+        return aimTargetY;
+    }
+
+    public double getAimOffsetDeg() {
+        return aimOffsetDeg;
+    }
+
+    public boolean hasValidAim() {
+        return hasValidAim;
+    }
+
+    public double getMinServoPosition() {
+        return INIT_POSITION - SOFT_HALF_POSITION;
+    }
+
+    public double getMaxServoPosition() {
+        return INIT_POSITION + SOFT_HALF_POSITION;
     }
 }
