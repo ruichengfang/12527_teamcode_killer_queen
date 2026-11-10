@@ -25,10 +25,10 @@ public class DriveSubsystem extends SubsystemBase {
         frontRight = hardwareMap.get(DcMotorEx.class, NameConstants.FRONT_RIGHT);
         backRight = hardwareMap.get(DcMotorEx.class, NameConstants.BACK_RIGHT);
 
-        configureMotor(frontLeft, DcMotor.Direction.REVERSE);
-        configureMotor(backLeft, DcMotor.Direction.REVERSE);
-        configureMotor(frontRight, DcMotor.Direction.FORWARD);
-        configureMotor(backRight, DcMotor.Direction.FORWARD);
+        configureMotor(frontLeft, DcMotor.Direction.FORWARD);
+        configureMotor(backLeft, DcMotor.Direction.FORWARD);
+        configureMotor(frontRight, DcMotor.Direction.REVERSE);
+        configureMotor(backRight, DcMotor.Direction.REVERSE);
     }
 
     private static void configureMotor(DcMotorEx motor, DcMotor.Direction direction) {

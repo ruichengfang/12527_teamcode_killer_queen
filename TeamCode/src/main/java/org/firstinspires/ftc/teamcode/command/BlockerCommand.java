@@ -19,6 +19,11 @@ public class BlockerCommand {
         previousLeftBumper = false;
     }
 
+    /** 同步按键状态，避免联合发射结束时把一直按住的 LB 当成新按键。 */
+    public void syncButtonState() {
+        previousLeftBumper = gamepad.left_bumper;
+    }
+
     public void update() {
         boolean leftBumper = gamepad.left_bumper;
         if (leftBumper && !previousLeftBumper) {

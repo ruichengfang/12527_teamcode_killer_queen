@@ -8,18 +8,18 @@
 
 当前仓库使用 FTC SDK 12.0，驾驶站手动控制入口为 `KillerQueen`（`Teleop.java`）。底盘、定位、发射、进料、云台和挡板分别由子系统管理；底盘场地坐标驾驶使用 Control Hub IMU 的航向。`AutoPath` 自动模式使用 Pedro 3、Ivy 和下面的参数；这些 Foresight 参数不会自动影响当前 TeleOp。
 
-当前 `LocalizationSubsystem.java` 给 Pinpoint 设置的偏移为 `(20.0, -135.2)` 毫米；下面 Pedro 自动调参得到的偏移为 `(0.35498074659212364, -5.000615457850178)` 英寸，约 `(9.0165, -127.0156)` 毫米。两组数值不相同，应用前应核对测量过程和坐标约定，并通过实机定位测试验证。当前 TeleOp 的起始位置 `(8, 111)` 英寸、航向 `0°` 是场地起点，不是 Pinpoint 硬件偏移。
+当前 `LocalizationSubsystem.java` 根据后来提供的调参结果，给 Pinpoint 设置的偏移为 `(-20.0, -131.218)` 毫米，并设置 4-bar 里程计轮和两个 `FORWARD` 编码器方向；下面记录的是本项目 Pedro 自动配置中的偏移 `(0.35498074659212364, -5.000615457850178)` 英寸，约 `(9.0165, -127.0156)` 毫米。两组数值不相同，应用前应核对测量过程和坐标约定，并通过实机定位测试验证。当前 TeleOp 的起始位置 `(8, 111)` 英寸、航向 `0°` 是场地起点，不是 Pinpoint 硬件偏移。
 
 ## 底盘
 
-用户已确认电机名称和位置正确；方向来自原程序和用户提供的 Mecanum 调参结果。
+用户此前确认电机名称和位置正确；根据前后方向的实车反馈，电机方向已统一调整，仍需逐轮实测确认。
 
 | 位置 | HardwareMap 名称 | 方向 |
 | --- | --- | --- |
-| 左前 | `leftFrontMotor` | `REVERSE` |
-| 右前 | `rightFrontMotor` | `FORWARD` |
-| 左后 | `leftBackMotor` | `REVERSE` |
-| 右后 | `rightBackMotor` | `FORWARD` |
+| 左前 | `leftFrontMotor` | `FORWARD` |
+| 右前 | `rightFrontMotor` | `REVERSE` |
+| 左后 | `leftBackMotor` | `FORWARD` |
+| 右后 | `rightBackMotor` | `REVERSE` |
 
 ## Pinpoint
 

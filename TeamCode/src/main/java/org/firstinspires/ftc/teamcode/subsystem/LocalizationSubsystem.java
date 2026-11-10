@@ -17,8 +17,8 @@ public class LocalizationSubsystem extends SubsystemBase {
     public static final double START_Y_IN = 111.0;
     public static final double START_HEADING_DEG = 0.0;
 
-    private static final double PINPOINT_X_OFFSET_MM = 20.0;
-    private static final double PINPOINT_Y_OFFSET_MM = -135.2;
+    private static final double PINPOINT_X_OFFSET_MM = -20.0;
+    private static final double PINPOINT_Y_OFFSET_MM = -131.218;
 
     private final IMU imu;
     private GoBildaPinpointDriver pinpoint;
@@ -41,6 +41,10 @@ public class LocalizationSubsystem extends SubsystemBase {
         try {
             pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, NameConstants.PINPOINT);
             pinpoint.setOffsets(PINPOINT_X_OFFSET_MM, PINPOINT_Y_OFFSET_MM, DistanceUnit.MM);
+            pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+            pinpoint.setEncoderDirections(
+                    GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                    GoBildaPinpointDriver.EncoderDirection.FORWARD);
             pinpoint.resetPosAndIMU();
             pinpointReady = true;
         } catch (Exception exception) {

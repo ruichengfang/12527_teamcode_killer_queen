@@ -66,7 +66,7 @@ public class Teleop extends OpMode {
         telemetry.addLine("【云台】D-pad 左/右：自瞄偏移或锁定角 +2°/-2°；X/Y 互斥");
         telemetry.addLine("【云台】普通模式回中 0.5；软限位 ±90°（位置 0.2~0.8）");
         telemetry.addLine("【Shooter】A：3300 RPM 开/关");
-        telemetry.addLine("【联合发射】按住 B：飞轮、自瞄、就绪后进料；松开停止");
+        telemetry.addLine("【联合发射】按住 B：飞轮、自瞄、延时后进料；松开停止");
         telemetry.addLine("【Blocker】LB：打开/关闭（位置需实机校准）");
         telemetry.addLine("【Blocker】D-pad 上/下：测试变量加/减 1");
         telemetry.addLine("【Intake】RB 按住：仅 Intake 全速正转，Transit 停止");
@@ -93,10 +93,13 @@ public class Teleop extends OpMode {
         lastTime = now;
 
         localization.update();
+        boolean releasedB = !gamepad1.b && previousB;
         if (gamepad1.b && !previousB) {
             CommandScheduler.getInstance().schedule(aimAndShootCommand);
-        } else if (!gamepad1.b && previousB) {
+        } else if (releasedB) {
             CommandScheduler.getInstance().cancel(aimAndShootCommand);
+            blocker.setOpen(false);
+            blockerCommand.syncButtonState();
         }
         boolean autoShooting = CommandScheduler.getInstance().isScheduled(aimAndShootCommand);
         driveCommand.update(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
@@ -116,8 +119,8 @@ public class Teleop extends OpMode {
 
         if (!autoShooting) {
             blockerCommand.update();
-            if (gamepad1.dpad_up && !previousUp && !gamepad1.dpad_down) blocker.addposition();
-            if (gamepad1.dpad_down && !previousDown && !gamepad1.dpad_up) blocker.minposition();
+            if (!releasedB && gamepad1.dpad_up && !previousUp && !gamepad1.dpad_down) blocker.addposition();
+            if (!releasedB && gamepad1.dpad_down && !previousDown && !gamepad1.dpad_up) blocker.minposition();
             intake.applyManualControl(gamepad1.right_bumper, gamepad1.right_trigger, gamepad1.left_trigger);
         }
 
