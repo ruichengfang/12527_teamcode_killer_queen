@@ -1,13 +1,13 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.teamcode.command.AimAndShootCommand;
 import org.firstinspires.ftc.teamcode.command.BlockerCommand;
 import org.firstinspires.ftc.teamcode.command.DriveCommand;
-import org.firstinspires.ftc.teamcode.command.IntakeCommand;
 import org.firstinspires.ftc.teamcode.command.ResetLocalizationCommand;
-import org.firstinspires.ftc.teamcode.command.ShooterCommand;
 import org.firstinspires.ftc.teamcode.command.TurretCommand;
 import org.firstinspires.ftc.teamcode.subsystem.BlockerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
@@ -27,16 +27,18 @@ public class Teleop extends OpMode {
     private BlockerSubsystem blocker;
 
     private DriveCommand driveCommand;
-    private IntakeCommand intakeCommand;
-    private ShooterCommand shooterCommand;
     private TurretCommand turretCommand;
     private BlockerCommand blockerCommand;
     private ResetLocalizationCommand resetLocalizationCommand;
+    private AimAndShootCommand aimAndShootCommand;
 
     private double lastTime;
+    private boolean previousA, previousX, previousY, previousLeft, previousRight;
+    private boolean previousStart, previousUp, previousDown, previousB;
 
     @Override
     public void init() {
+        CommandScheduler.getInstance().reset();
         localization = new LocalizationSubsystem(hardwareMap);
         drive = new DriveSubsystem(hardwareMap);
         intake = new IntakeSubsystem(hardwareMap);
@@ -44,12 +46,12 @@ public class Teleop extends OpMode {
         turret = new TurretSubsystem(hardwareMap);
         blocker = new BlockerSubsystem(hardwareMap);
 
-        driveCommand = new DriveCommand(gamepad1, drive, localization);
-        intakeCommand = new IntakeCommand(gamepad1, intake);
-        shooterCommand = new ShooterCommand(gamepad1, shooter);
-        turretCommand = new TurretCommand(gamepad1, turret, localization);
+        driveCommand = new DriveCommand(drive, localization);
+        turretCommand = new TurretCommand(turret, localization);
         blockerCommand = new BlockerCommand(gamepad1, blocker);
-        resetLocalizationCommand = new ResetLocalizationCommand(gamepad1, localization, turret);
+        resetLocalizationCommand = new ResetLocalizationCommand(localization, turret);
+        aimAndShootCommand = new AimAndShootCommand(shooter, turret, blocker, intake,
+                localization, this::getRuntime);
 
         telemetry.addLine("已初始化：底盘 + Pinpoint + Shooter + 云台三态 + Blocker");
         telemetry.addLine(localization.isPinpointReady() ? "Pinpoint: 已启用" : "Pinpoint: 未找到");
@@ -64,7 +66,9 @@ public class Teleop extends OpMode {
         telemetry.addLine("【云台】D-pad 左/右：自瞄偏移或锁定角 +2°/-2°；X/Y 互斥");
         telemetry.addLine("【云台】普通模式回中 0.5；软限位 ±90°（位置 0.2~0.8）");
         telemetry.addLine("【Shooter】A：3300 RPM 开/关");
+        telemetry.addLine("【联合发射】按住 B：飞轮、自瞄、就绪后进料；松开停止");
         telemetry.addLine("【Blocker】LB：打开/关闭（位置需实机校准）");
+        telemetry.addLine("【Blocker】D-pad 上/下：测试变量加/减 1");
         telemetry.addLine("【Intake】RB 按住：仅 Intake 全速正转，Transit 停止");
         telemetry.addLine("【Intake】RT/LT 按住：Intake + Transit 正转/反转，力度随扳机");
         telemetry.addLine("【优先级】RB > RT > LT；全部松开则 Intake + Transit 停止");
@@ -74,10 +78,12 @@ public class Teleop extends OpMode {
     @Override
     public void start() {
         lastTime = getRuntime();
-        shooterCommand.start();
-        turretCommand.start();
+        previousA = previousX = previousY = previousLeft = previousRight = false;
         blockerCommand.start();
-        resetLocalizationCommand.start();
+        previousUp = gamepad1.dpad_up;
+        previousDown = gamepad1.dpad_down;
+        previousStart = true;
+        previousB = gamepad1.b;
     }
 
     @Override
@@ -87,12 +93,47 @@ public class Teleop extends OpMode {
         lastTime = now;
 
         localization.update();
-        driveCommand.update();
-        turretCommand.update();
-        shooterCommand.update(deltaSeconds);
-        blockerCommand.update();
-        intakeCommand.update();
-        resetLocalizationCommand.update();
+        if (gamepad1.b && !previousB) {
+            CommandScheduler.getInstance().schedule(aimAndShootCommand);
+        } else if (!gamepad1.b && previousB) {
+            CommandScheduler.getInstance().cancel(aimAndShootCommand);
+        }
+        boolean autoShooting = CommandScheduler.getInstance().isScheduled(aimAndShootCommand);
+        driveCommand.update(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+
+        turretCommand.update(!autoShooting && gamepad1.x && !previousX,
+                !autoShooting && gamepad1.y && !previousY,
+                !autoShooting && gamepad1.dpad_left && !previousLeft,
+                !autoShooting && gamepad1.dpad_right && !previousRight);
+        if (turret.isAimMode() && !turret.isReachable()) {
+            gamepad1.rumble(0.8, 0.8, 200);
+        } else {
+            gamepad1.stopRumble();
+        }
+
+        if (!autoShooting && gamepad1.a && !previousA) shooter.toggle();
+        shooter.update(deltaSeconds);
+
+        if (!autoShooting) {
+            blockerCommand.update();
+            if (gamepad1.dpad_up && !previousUp && !gamepad1.dpad_down) blocker.addposition();
+            if (gamepad1.dpad_down && !previousDown && !gamepad1.dpad_up) blocker.minposition();
+            intake.applyManualControl(gamepad1.right_bumper, gamepad1.right_trigger, gamepad1.left_trigger);
+        }
+
+        if (gamepad1.start && !previousStart) resetLocalizationCommand.execute();
+
+        previousA = gamepad1.a;
+        previousX = gamepad1.x;
+        previousY = gamepad1.y;
+        previousLeft = gamepad1.dpad_left;
+        previousRight = gamepad1.dpad_right;
+        previousStart = gamepad1.start;
+        previousUp = gamepad1.dpad_up;
+        previousDown = gamepad1.dpad_down;
+        previousB = gamepad1.b;
+
+        CommandScheduler.getInstance().run();
 
         updateTelemetry();
     }
@@ -136,8 +177,8 @@ public class Teleop extends OpMode {
             telemetry.addData("有效瞄准已建立?", turret.hasValidAim() ? "是" : "否");
         }
 
-        telemetry.addData("Blocker 状态", blocker.isOpen() ? "打开 (LB 关闭)" : "关闭 (LB 打开)");
-        telemetry.addData("Blocker 舵机位置", "%.2f", blocker.getPosition());
+        telemetry.addData("Blocker testposition（目标值）", "%.2f", blocker.getPosition());
+        telemetry.addData("联合发射", aimAndShootCommand.getState());
 
         telemetry.addData("Shooter 目标 RPM", "%.0f", shooter.getTargetRpm());
         telemetry.addData("Shooter 实际 RPM", "%.0f", shooter.getFilteredRpm());
@@ -163,10 +204,12 @@ public class Teleop extends OpMode {
 
     @Override
     public void stop() {
+        CommandScheduler.getInstance().cancel(aimAndShootCommand);
         drive.stop();
         intake.stop();
         shooter.stop();
         shooter.update(1e-4);
         gamepad1.stopRumble();
+        CommandScheduler.getInstance().reset();
     }
 }

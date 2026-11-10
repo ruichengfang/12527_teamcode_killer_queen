@@ -1,12 +1,13 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
+import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
-public class TurretSubsystem {
+public class TurretSubsystem extends SubsystemBase {
     public static final double INIT_POSITION = 0.5;
     public static final double SOFT_LIMIT_DEG = 90.0;
     public static final double MANUAL_STEP_DEG = 2.0;
@@ -49,14 +50,24 @@ public class TurretSubsystem {
     public TurretSubsystem(HardwareMap hardwareMap) {
         leftServo = hardwareMap.get(Servo.class, NameConstants.TURRET_LEFT);
         rightServo = hardwareMap.get(Servo.class, NameConstants.TURRET_RIGHT);
+        // 左右舵机按镜像安装配置；实机确认转向和中位。
+        leftServo.setDirection(Servo.Direction.FORWARD);
+        rightServo.setDirection(Servo.Direction.FORWARD);
         setServoPositions(INIT_POSITION);
     }
 
     public boolean toggleAimMode(boolean pinpointReady) {
-        if (!pinpointReady) {
+        return setAimMode(!aimMode, pinpointReady);
+    }
+
+    public boolean setAimMode(boolean enabled, boolean pinpointReady) {
+        if (enabled && !pinpointReady) {
             return false;
         }
-        aimMode = !aimMode;
+        if (aimMode == enabled) {
+            return true;
+        }
+        aimMode = enabled;
         if (aimMode) {
             lockMode = false;
         }

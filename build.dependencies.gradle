@@ -1,4 +1,8 @@
 repositories {
+    maven {
+        url uri("$rootDir/libs/dashboard-maven")
+        content { includeGroup 'com.acmerobotics.dashboard' }
+    }
     mavenCentral()
     maven { url 'https://repo.dairy.foundation/releases/' }
     google() // Needed for androidx

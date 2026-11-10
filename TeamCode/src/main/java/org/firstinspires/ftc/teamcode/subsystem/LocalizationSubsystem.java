@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
+import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -11,7 +12,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 集中管理 Control Hub IMU 与 GoBilda Pinpoint 定位。 */
-public class LocalizationSubsystem {
+public class LocalizationSubsystem extends SubsystemBase {
     public static final double START_X_IN = 8.0;
     public static final double START_Y_IN = 111.0;
     public static final double START_HEADING_DEG = 0.0;
