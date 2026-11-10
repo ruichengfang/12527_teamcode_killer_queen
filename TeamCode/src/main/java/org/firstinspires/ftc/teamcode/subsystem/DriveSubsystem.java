@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
+import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -7,7 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 四轮麦克纳姆底盘。 */
-public class DriveSubsystem {
+public class DriveSubsystem extends SubsystemBase {
     private final DcMotorEx frontLeft;
     private final DcMotorEx backLeft;
     private final DcMotorEx frontRight;

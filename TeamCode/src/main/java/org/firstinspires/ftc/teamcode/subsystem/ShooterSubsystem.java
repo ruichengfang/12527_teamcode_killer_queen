@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
+import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -7,7 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 双电机飞轮及其 PD + 前馈转速控制。 */
-public class ShooterSubsystem {
+public class ShooterSubsystem extends SubsystemBase {
     public static final double SINGLE_BALL_RPM = 3300.0;
 
     private static final double TICKS_PER_REV = 28.0;
@@ -41,6 +42,10 @@ public class ShooterSubsystem {
 
     public void toggle() {
         targetRpm = targetRpm > 0.0 ? 0.0 : SINGLE_BALL_RPM;
+    }
+
+    public void start() {
+        targetRpm = SINGLE_BALL_RPM;
     }
 
     public void stop() {

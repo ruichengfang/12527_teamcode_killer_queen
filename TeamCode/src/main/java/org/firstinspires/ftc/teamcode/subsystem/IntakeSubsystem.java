@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
+import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -7,7 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** Intake 与 Transit 的联合输送机构。 */
-public class IntakeSubsystem {
+public class IntakeSubsystem extends SubsystemBase {
     private final DcMotorEx intakeMotor;
     private final DcMotorEx transitMotor;
 
@@ -30,6 +31,19 @@ public class IntakeSubsystem {
         this.transitPower = transitPower;
         intakeMotor.setPower(intakePower);
         transitMotor.setPower(transitPower);
+    }
+
+    /** 手动进料优先级：单独吸入 > 正向联动 > 反向联动。 */
+    public void applyManualControl(boolean intakeOnly, double forward, double reverse) {
+        if (intakeOnly) {
+            setPowers(1.0, 0.0);
+        } else if (forward > 0.05) {
+            setPowers(forward, forward);
+        } else if (reverse > 0.05) {
+            setPowers(-reverse, -reverse);
+        } else {
+            stop();
+        }
     }
 
     public void stop() {

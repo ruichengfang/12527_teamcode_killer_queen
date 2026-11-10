@@ -5,6 +5,7 @@
 *.aab
 
 !libs/*.aar
+!libs/dashboard-maven/**/*.aar
 
 # Files for the ART/Dalvik VM
 *.dex
