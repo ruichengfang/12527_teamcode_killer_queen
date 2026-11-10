@@ -1,0 +1,30 @@
+version: v2
+title: 手柄震动与云台角度关系
+size: [1280, 720]
+theme:
+  colors:
+    background: "#F7F8F6"
+    ink: "#26312F"
+    muted: "#6B7572"
+    line: "#697773"
+    green: "#CDEDDD"
+    greenDark: "#2F7B5D"
+    red: "#F5D5D2"
+    redDark: "#A6534C"
+  textStyles:
+    title:
+      fontSize: 36
+      fontFamily: MiSans
+      color: "$ink"
+      bold: true
+    subtitle:
+      fontSize: 17
+      fontFamily: MiSans
+      color: "$muted"
+    node:
+      fontSize: 23
+      fontFamily: MiSans
+      color: "$ink"
+      bold: true
+pages:
+  - pages/1_flow.page

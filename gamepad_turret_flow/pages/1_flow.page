@@ -1,0 +1,217 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: kicker
+    elementType: text
+    bounds: [64, 34, 400, 22]
+    content:
+      fontSize: 12
+      bold: true
+      letterSpacing: 2
+      color: "$muted"
+      wrap: false
+      align: [left, middle]
+      text: TURRET · GAMEPAD FEEDBACK
+
+  - elementId: title
+    elementType: text
+    bounds: [64, 62, 760, 50]
+    content:
+      style: "$title"
+      wrap: false
+      align: [left, middle]
+      text: 手柄震动与云台角度
+
+  - elementId: subtitle
+    elementType: text
+    bounds: [64, 116, 800, 28]
+    content:
+      style: "$subtitle"
+      wrap: false
+      align: [left, middle]
+      text: 云台超出 −90°～+90° 的可旋转范围时，通过手柄震动提醒
+
+  - elementId: input-bg
+    elementType: shape
+    bounds: [64, 300, 230, 96]
+    shapeName: roundRect
+    adjustments: [18000]
+    fill: {type: solid, color: "#FFFFFF"}
+    border: {style: solid, width: 1.5, color: "$ink"}
+    shadow: {blur: 8, color: "#26312F12", offset: [0, 3]}
+  - elementId: input-step
+    elementType: text
+    bounds: [84, 313, 190, 20]
+    content:
+      fontSize: 11
+      bold: true
+      letterSpacing: 1.5
+      color: "$muted"
+      wrap: false
+      align: [center, middle]
+      text: 01 · 读取角度
+  - elementId: input-text
+    elementType: text
+    bounds: [80, 338, 198, 40]
+    content:
+      style: "$node"
+      fontSize: 21
+      wrap: false
+      align: [center, middle]
+      text: 获取云台角度 θ
+
+  - elementId: decision-bg
+    elementType: shape
+    bounds: [400, 260, 220, 176]
+    shapeName: diamond
+    fill: {type: solid, color: "#E9EEEC"}
+    border: {style: solid, width: 1.5, color: "$ink"}
+  - elementId: decision-text
+    elementType: text
+    bounds: [443, 311, 134, 74]
+    content:
+      fontSize: 21
+      bold: true
+      color: "$ink"
+      lineHeight: 1.15
+      align: [center, middle]
+      text: |
+        <p style="text-align:center">−90° ≤ θ</p>
+        <p style="text-align:center">≤ +90° ?</p>
+
+  - elementId: safe-bg
+    elementType: shape
+    bounds: [790, 180, 280, 100]
+    shapeName: roundRect
+    adjustments: [16000]
+    fill: {type: solid, color: "$green"}
+    border: {style: solid, width: 1.5, color: "$greenDark"}
+  - elementId: safe-text
+    elementType: text
+    bounds: [810, 193, 240, 74]
+    content:
+      align: [center, middle]
+      lineHeight: 1.05
+      text: |
+        <p style="text-align:center"><span style="font-size:12px; color:$greenDark"><strong>角度在可旋转范围内</strong></span></p>
+        <p style="text-align:center; margin-top:8px"><span style="font-size:24px; color:$ink"><strong>手柄不震动</strong></span></p>
+
+  - elementId: danger-bg
+    elementType: shape
+    bounds: [790, 420, 280, 100]
+    shapeName: roundRect
+    adjustments: [16000]
+    fill: {type: solid, color: "$red"}
+    border: {style: solid, width: 1.5, color: "$redDark"}
+  - elementId: danger-text
+    elementType: text
+    bounds: [810, 433, 240, 74]
+    content:
+      align: [center, middle]
+      lineHeight: 1.05
+      text: |
+        <p style="text-align:center"><span style="font-size:12px; color:$redDark"><strong>角度超出可旋转范围</strong></span></p>
+        <p style="text-align:center; margin-top:8px"><span style="font-size:24px; color:$ink"><strong>手柄震动提醒</strong></span></p>
+
+  - elementId: arrow-input-decision
+    elementType: line
+    bounds: [294, 346, 106, 4]
+    viewBox: [106, 4]
+    points: "0,2 106,2"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$line"}
+
+  - elementId: arrow-decision-safe
+    elementType: line
+    bounds: [508, 230, 282, 30]
+    viewBox: [282, 30]
+    points: "2,30 2,0 282,0"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$greenDark"}
+
+  - elementId: arrow-decision-danger
+    elementType: line
+    bounds: [508, 436, 282, 34]
+    viewBox: [282, 34]
+    points: "2,0 2,34 282,34"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$redDark"}
+
+  - elementId: loop-safe
+    elementType: line
+    bounds: [1070, 230, 90, 390]
+    viewBox: [90, 390]
+    points: "0,0 90,0 90,390"
+    curve: sharp
+    border: {style: solid, width: 1.7, color: "$line"}
+
+  - elementId: loop-danger
+    elementType: line
+    bounds: [1070, 470, 90, 150]
+    viewBox: [90, 150]
+    points: "0,0 90,0 90,150"
+    curve: sharp
+    border: {style: solid, width: 1.7, color: "$line"}
+
+  - elementId: loop-return
+    elementType: line
+    bounds: [177, 396, 983, 224]
+    viewBox: [983, 224]
+    points: "983,224 2,224 2,0"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 1.7, color: "$line"}
+
+  - elementId: yes-label-bg
+    elementType: shape
+    bounds: [522, 215, 34, 26]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "$background"}
+  - elementId: yes-label
+    elementType: text
+    bounds: [522, 215, 34, 26]
+    content: {fontSize: 13, bold: true, color: "$greenDark", wrap: false, align: [center, middle], text: 是}
+
+  - elementId: no-label-bg
+    elementType: shape
+    bounds: [522, 442, 34, 26]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "$background"}
+  - elementId: no-label
+    elementType: text
+    bounds: [522, 442, 34, 26]
+    content: {fontSize: 13, bold: true, color: "$redDark", wrap: false, align: [center, middle], text: 否}
+
+  - elementId: loop-label-bg
+    elementType: shape
+    bounds: [578, 604, 124, 32]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "$background"}
+  - elementId: loop-label
+    elementType: text
+    bounds: [578, 604, 124, 32]
+    content:
+      fontSize: 13
+      bold: true
+      color: "$muted"
+      wrap: false
+      align: [center, middle]
+      text: 持续循环检测
+
+  - elementId: footer-note
+    elementType: text
+    bounds: [64, 668, 980, 24]
+    content:
+      fontSize: 13
+      color: "$muted"
+      wrap: false
+      align: [left, middle]
+      text: 每次循环重新读取角度；云台回到可旋转范围后，手柄停止震动。

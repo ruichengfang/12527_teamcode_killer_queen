@@ -1,0 +1,328 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+notes: Pinpoint 根据机器人 y 坐标选择高 Hive 或低 Hive；71 < y < 73 为滞回区，保持上一次瞄点。
+elements:
+  - elementId: header-kicker
+    elementType: text
+    bounds: [64, 34, 360, 22]
+    content:
+      fontSize: 12
+      bold: true
+      letterSpacing: 2
+      color: "$muted"
+      wrap: false
+      align: [left, middle]
+      text: PINPOINT · AIM LOGIC
+
+  - elementId: title
+    elementType: text
+    bounds: [64, 60, 700, 48]
+    content:
+      style: "$title"
+      wrap: false
+      align: [left, middle]
+      text: Pinpoint 双 Hive 瞄点选择
+
+  - elementId: subtitle
+    elementType: text
+    bounds: [64, 110, 650, 28]
+    content:
+      style: "$subtitle"
+      wrap: false
+      align: [left, middle]
+      text: 根据机器人 y 坐标选择目标，并保留临界区防抖逻辑
+
+  - elementId: header-chip-bg
+    elementType: shape
+    bounds: [1030, 58, 186, 40]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "#E8EEF5"}
+  - elementId: header-chip-text
+    elementType: text
+    bounds: [1030, 58, 186, 40]
+    content:
+      fontSize: 13
+      bold: true
+      color: "$body"
+      wrap: false
+      align: [center, middle]
+      text: 坐标 → 判断 → 瞄准
+
+  - elementId: start-bg
+    elementType: shape
+    bounds: [64, 315, 220, 90]
+    shapeName: roundRect
+    adjustments: [18000]
+    fill: {type: solid, color: "#FFFFFF"}
+    border: {style: solid, width: 1.5, color: "$body"}
+    shadow: {blur: 8, color: "#17233B12", offset: [0, 3]}
+  - elementId: start-step
+    elementType: text
+    bounds: [84, 328, 180, 20]
+    content:
+      fontSize: 11
+      bold: true
+      letterSpacing: 1.5
+      color: "$muted"
+      wrap: false
+      align: [center, middle]
+      text: 01 · 坐标输入
+  - elementId: start-text
+    elementType: text
+    bounds: [80, 350, 188, 40]
+    content:
+      fontSize: 21
+      bold: true
+      color: "$ink"
+      wrap: false
+      align: [center, middle]
+      text: 获取坐标 (x, y)
+
+  - elementId: decision-high-bg
+    elementType: shape
+    bounds: [360, 285, 170, 150]
+    shapeName: diamond
+    fill: {type: solid, color: "$decision"}
+    border: {style: solid, width: 1.5, color: "$body"}
+  - elementId: decision-high-text
+    elementType: text
+    bounds: [388, 337, 114, 46]
+    content:
+      fontSize: 25
+      bold: true
+      color: "$ink"
+      wrap: false
+      align: [center, middle]
+      text: y ≥ 73 ?
+
+  - elementId: decision-low-bg
+    elementType: shape
+    bounds: [650, 285, 170, 150]
+    shapeName: diamond
+    fill: {type: solid, color: "$decision"}
+    border: {style: solid, width: 1.5, color: "$body"}
+  - elementId: decision-low-text
+    elementType: text
+    bounds: [678, 337, 114, 46]
+    content:
+      fontSize: 25
+      bold: true
+      color: "$ink"
+      wrap: false
+      align: [center, middle]
+      text: y ≤ 71 ?
+
+  - elementId: high-target-bg
+    elementType: shape
+    bounds: [350, 160, 190, 86]
+    shapeName: roundRect
+    adjustments: [16000]
+    fill: {type: solid, color: "$amberLight"}
+    border: {style: solid, width: 1.5, color: "$amber"}
+  - elementId: high-target-text
+    elementType: text
+    bounds: [362, 170, 166, 66]
+    content:
+      align: [center, middle]
+      lineHeight: 1.05
+      text: |
+        <p style="text-align:center"><span style="font-size:11px; color:$amber"><strong>HIGH HIVE</strong></span></p>
+        <p style="text-align:center; margin-top:7px"><span style="font-size:21px; color:$ink"><strong>瞄准 (60, 84)</strong></span></p>
+
+  - elementId: low-target-bg
+    elementType: shape
+    bounds: [640, 160, 190, 86]
+    shapeName: roundRect
+    adjustments: [16000]
+    fill: {type: solid, color: "$tealLight"}
+    border: {style: solid, width: 1.5, color: "$teal"}
+  - elementId: low-target-text
+    elementType: text
+    bounds: [652, 170, 166, 66]
+    content:
+      align: [center, middle]
+      lineHeight: 1.05
+      text: |
+        <p style="text-align:center"><span style="font-size:11px; color:$teal"><strong>LOW HIVE</strong></span></p>
+        <p style="text-align:center; margin-top:7px"><span style="font-size:21px; color:$ink"><strong>瞄准 (60, 60)</strong></span></p>
+
+  - elementId: hold-target-bg
+    elementType: shape
+    bounds: [640, 510, 190, 86]
+    shapeName: roundRect
+    adjustments: [16000]
+    fill: {type: solid, color: "$neutralLight"}
+    border: {style: solid, width: 1.5, color: "$muted"}
+  - elementId: hold-target-text
+    elementType: text
+    bounds: [650, 521, 170, 64]
+    content:
+      align: [center, middle]
+      lineHeight: 1.05
+      text: |
+        <p style="text-align:center"><span style="font-size:19px; color:$ink"><strong>保持上一次瞄点</strong></span></p>
+        <p style="text-align:center; margin-top:7px"><span style="font-size:13px; color:$muted">71 ＜ y ＜ 73 · 滞回区</span></p>
+
+  - elementId: execute-bg
+    elementType: shape
+    bounds: [1000, 305, 220, 110]
+    shapeName: roundRect
+    adjustments: [14000]
+    fill: {type: solid, color: "$ink"}
+    shadow: {blur: 10, color: "#17233B24", offset: [0, 4]}
+  - elementId: execute-step
+    elementType: text
+    bounds: [1020, 322, 180, 20]
+    content:
+      fontSize: 11
+      bold: true
+      letterSpacing: 1.5
+      color: "#B8C4D6"
+      wrap: false
+      align: [center, middle]
+      text: 03 · 目标输出
+  - elementId: execute-text
+    elementType: text
+    bounds: [1016, 347, 188, 50]
+    content:
+      align: [center, middle]
+      lineHeight: 1.05
+      text: |
+        <p style="text-align:center"><span style="font-size:24px; color:#FFFFFF"><strong>执行瞄准</strong></span></p>
+        <p style="text-align:center; margin-top:6px"><span style="font-size:12px; color:#B8C4D6">使用选定 Hive 坐标</span></p>
+
+  - elementId: arrow-start-to-high-decision
+    elementType: line
+    bounds: [284, 358, 76, 4]
+    viewBox: [76, 4]
+    points: "0,2 76,2"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$line"}
+
+  - elementId: arrow-high-decision-to-low-decision
+    elementType: line
+    bounds: [530, 358, 120, 4]
+    viewBox: [120, 4]
+    points: "0,2 120,2"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$line"}
+
+  - elementId: arrow-yes-high
+    elementType: line
+    bounds: [443, 246, 4, 39]
+    viewBox: [4, 39]
+    points: "2,39 2,0"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$amber"}
+
+  - elementId: arrow-yes-low
+    elementType: line
+    bounds: [733, 246, 4, 39]
+    viewBox: [4, 39]
+    points: "2,39 2,0"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$teal"}
+
+  - elementId: arrow-no-hold
+    elementType: line
+    bounds: [733, 435, 4, 75]
+    viewBox: [4, 75]
+    points: "2,0 2,75"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 2, color: "$line"}
+
+  - elementId: arrow-high-to-execute
+    elementType: line
+    bounds: [445, 140, 555, 190]
+    viewBox: [555, 190]
+    points: "0,20 0,0 505,0 505,190 555,190"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 1.7, color: "$amber"}
+
+  - elementId: arrow-low-to-execute
+    elementType: line
+    bounds: [830, 203, 170, 147]
+    viewBox: [170, 147]
+    points: "0,0 70,0 70,147 170,147"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 1.7, color: "$teal"}
+
+  - elementId: arrow-hold-to-execute
+    elementType: line
+    bounds: [830, 390, 170, 163]
+    viewBox: [170, 163]
+    points: "0,163 70,163 70,0 170,0"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 1.7, color: "$muted"}
+
+  - elementId: label-no-main-bg
+    elementType: shape
+    bounds: [573, 325, 34, 24]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "$background"}
+  - elementId: label-no-main
+    elementType: text
+    bounds: [573, 325, 34, 24]
+    content: {fontSize: 13, bold: true, color: "$muted", wrap: false, align: [center, middle], text: 否}
+
+  - elementId: label-yes-high-bg
+    elementType: shape
+    bounds: [455, 254, 32, 24]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "$background"}
+  - elementId: label-yes-high
+    elementType: text
+    bounds: [455, 254, 32, 24]
+    content: {fontSize: 13, bold: true, color: "$amber", wrap: false, align: [center, middle], text: 是}
+
+  - elementId: label-yes-low-bg
+    elementType: shape
+    bounds: [745, 254, 32, 24]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "$background"}
+  - elementId: label-yes-low
+    elementType: text
+    bounds: [745, 254, 32, 24]
+    content: {fontSize: 13, bold: true, color: "$teal", wrap: false, align: [center, middle], text: 是}
+
+  - elementId: label-no-hold-bg
+    elementType: shape
+    bounds: [745, 458, 32, 24]
+    shapeName: roundRect
+    adjustments: [50000]
+    fill: {type: solid, color: "$background"}
+  - elementId: label-no-hold
+    elementType: text
+    bounds: [745, 458, 32, 24]
+    content: {fontSize: 13, bold: true, color: "$muted", wrap: false, align: [center, middle], text: 否}
+
+  - elementId: footer-rule
+    elementType: line
+    bounds: [64, 637, 1152, 2]
+    viewBox: [1152, 2]
+    points: "0,1 1152,1"
+    curve: sharp
+    border: {style: solid, width: 1, color: "#D7DEE8"}
+  - elementId: footer-note
+    elementType: text
+    bounds: [64, 652, 900, 26]
+    content:
+      fontSize: 13
+      color: "$muted"
+      wrap: false
+      align: [left, middle]
+      text: 滞回区用于避免机器人在 y ≈ 72 附近因测量波动而反复切换目标。

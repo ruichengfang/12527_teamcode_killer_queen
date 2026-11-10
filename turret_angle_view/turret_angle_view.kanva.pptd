@@ -1,0 +1,29 @@
+version: v2
+title: 车体与云台旋转角度示意图
+size: [1080, 1080]
+theme:
+  colors:
+    background: "#F7F8F6"
+    ink: "#26312F"
+    muted: "#6B7572"
+    green: "#CDEDDD"
+    greenDark: "#2F7B5D"
+    red: "#F5D5D2"
+    redDark: "#A6534C"
+  textStyles:
+    title:
+      fontSize: 38
+      fontFamily: MiSans
+      color: "$ink"
+      bold: true
+    subtitle:
+      fontSize: 18
+      fontFamily: MiSans
+      color: "$muted"
+    angle:
+      fontSize: 22
+      fontFamily: MiSans
+      color: "$ink"
+      bold: true
+pages:
+  - pages/1_angle_view.page

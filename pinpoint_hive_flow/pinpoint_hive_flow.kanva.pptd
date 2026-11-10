@@ -1,0 +1,37 @@
+version: v2
+title: Pinpoint 双 Hive 瞄点选择
+size: [1280, 720]
+theme:
+  colors:
+    background: "#F5F7FA"
+    ink: "#17233B"
+    body: "#334155"
+    muted: "#64748B"
+    line: "#64748B"
+    decision: "#E8EEF5"
+    amber: "#D97706"
+    amberLight: "#FFF4DB"
+    teal: "#0F766E"
+    tealLight: "#E5F6F2"
+    neutralLight: "#EEF1F5"
+  textStyles:
+    title:
+      fontSize: 36
+      fontFamily: MiSans
+      color: "$ink"
+      bold: true
+    subtitle:
+      fontSize: 17
+      fontFamily: MiSans
+      color: "$muted"
+    node:
+      fontSize: 22
+      fontFamily: MiSans
+      color: "$ink"
+      bold: true
+    small:
+      fontSize: 13
+      fontFamily: MiSans
+      color: "$muted"
+pages:
+  - pages/1_flow.page

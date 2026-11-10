@@ -1,0 +1,189 @@
+pageType: content
+background:
+  type: solid
+  color: "$background"
+elements:
+  - elementId: title
+    elementType: text
+    bounds: [190, 50, 700, 54]
+    content:
+      style: "$title"
+      wrap: false
+      align: [center, middle]
+      text: 车体与云台旋转角度
+
+  - elementId: subtitle
+    elementType: text
+    bounds: [190, 112, 700, 30]
+    content:
+      style: "$subtitle"
+      wrap: false
+      align: [center, middle]
+      text: 前吸球 · 后发射｜云台 0° 位于上方
+
+  - elementId: robot-body
+    elementType: shape
+    bounds: [190, 190, 700, 700]
+    shapeName: ellipse
+    fill: {type: solid, color: "#FFFFFF"}
+    border: {style: solid, width: 3, color: "$ink"}
+
+  - elementId: turret-lower-semicircle
+    elementType: shape
+    bounds: [290, 290, 500, 500]
+    shapeName: custom
+    viewBox: [500, 500]
+    path: "M0,250 A250,250 0 0 0 500,250 L440,250 A190,190 0 0 1 60,250 Z"
+    fill: {type: solid, color: "$red"}
+
+  - elementId: turret-upper-semicircle
+    elementType: shape
+    bounds: [290, 290, 500, 500]
+    shapeName: custom
+    viewBox: [500, 500]
+    path: "M0,250 A250,250 0 0 1 500,250 L440,250 A190,190 0 0 0 60,250 Z"
+    fill: {type: solid, color: "$green"}
+
+  - elementId: turret-inner-disc
+    elementType: shape
+    bounds: [350, 350, 380, 380]
+    shapeName: ellipse
+    fill: {type: solid, color: "#FFFFFF"}
+
+  - elementId: turret-outer-outline
+    elementType: shape
+    bounds: [290, 290, 500, 500]
+    shapeName: ellipse
+    border: {style: solid, width: 2, color: "$ink"}
+
+  - elementId: turret-inner-outline
+    elementType: shape
+    bounds: [350, 350, 380, 380]
+    shapeName: ellipse
+    border: {style: solid, width: 1.5, color: "$muted"}
+
+  - elementId: robot-label
+    elementType: text
+    bounds: [465, 215, 150, 36]
+    content:
+      fontSize: 18
+      bold: true
+      color: "$muted"
+      wrap: false
+      align: [center, middle]
+      text: 车体
+
+  - elementId: angle-zero
+    elementType: text
+    bounds: [505, 304, 70, 34]
+    content:
+      style: "$angle"
+      wrap: false
+      align: [center, middle]
+      text: 0°
+
+  - elementId: angle-positive-ninety
+    elementType: text
+    bounds: [710, 523, 72, 34]
+    content:
+      style: "$angle"
+      color: "$greenDark"
+      wrap: false
+      align: [center, middle]
+      text: +90°
+
+  - elementId: angle-negative-ninety
+    elementType: text
+    bounds: [298, 523, 72, 34]
+    content:
+      style: "$angle"
+      color: "$greenDark"
+      wrap: false
+      align: [center, middle]
+      text: −90°
+
+  - elementId: angle-one-eighty
+    elementType: text
+    bounds: [500, 742, 80, 34]
+    content:
+      style: "$angle"
+      color: "$redDark"
+      wrap: false
+      align: [center, middle]
+      text: ±180°
+
+  - elementId: allowed-label
+    elementType: text
+    bounds: [400, 372, 280, 34]
+    content:
+      fontSize: 20
+      bold: true
+      color: "$greenDark"
+      wrap: false
+      align: [center, middle]
+      text: 可旋转角度
+
+  - elementId: turret-pointer
+    elementType: line
+    bounds: [537, 425, 6, 108]
+    viewBox: [6, 108]
+    points: "3,108 3,0"
+    curve: sharp
+    arrow: [null, arrow]
+    border: {style: solid, width: 4, color: "$ink"}
+
+  - elementId: turret-hub
+    elementType: shape
+    bounds: [526, 526, 28, 28]
+    shapeName: ellipse
+    fill: {type: solid, color: "$ink"}
+
+  - elementId: turret-label
+    elementType: text
+    bounds: [440, 568, 200, 40]
+    content:
+      fontSize: 26
+      bold: true
+      color: "$ink"
+      wrap: false
+      align: [center, middle]
+      text: 云台
+
+  - elementId: blocked-label
+    elementType: text
+    bounds: [400, 660, 280, 34]
+    content:
+      fontSize: 20
+      bold: true
+      color: "$redDark"
+      wrap: false
+      align: [center, middle]
+      text: 不可旋转角度
+
+  - elementId: front-arrow
+    elementType: shape
+    bounds: [505, 835, 70, 140]
+    shapeName: downArrow
+    adjustments: [42000, 42000]
+    fill: {type: solid, color: "$ink"}
+
+  - elementId: front-label
+    elementType: text
+    bounds: [595, 875, 110, 44]
+    content:
+      fontSize: 26
+      bold: true
+      color: "$ink"
+      wrap: false
+      align: [left, middle]
+      text: 车头
+
+  - elementId: front-sublabel
+    elementType: text
+    bounds: [595, 920, 110, 28]
+    content:
+      fontSize: 16
+      color: "$muted"
+      wrap: false
+      align: [left, middle]
+      text: 前吸球
