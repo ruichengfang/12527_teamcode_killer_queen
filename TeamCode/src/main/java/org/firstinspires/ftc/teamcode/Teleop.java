@@ -34,7 +34,7 @@ public class Teleop extends OpMode {
 
     private double lastTime;
     private boolean previousA, previousX, previousY, previousLeft, previousRight;
-    private boolean previousStart, previousUp, previousDown, previousB;
+    private boolean previousLeftStick, previousUp, previousDown, previousB;
 
     @Override
     public void init() {
@@ -59,6 +59,28 @@ public class Teleop extends OpMode {
         telemetry.update();
     }
 
+    @Override
+    public void init_loop() {
+        // INIT 可以复位 Pinpoint；READY 后才恢复自动末位置，并在写入后重新读取。
+        localization.update();
+
+        telemetry.addData("初始坐标来源", AutoEndPose.hasValue() ? "自动末位置" : "手动默认起点");
+        telemetry.addData("Pinpoint 状态", localization.getPinpointStatus());
+        telemetry.addData("初始坐标已写入", localization.isPositionInitialized());
+        if (localization.isPositionInitialized()) {
+            telemetry.addData("当前 X/Y (in)", "(%.2f, %.2f)",
+                    localization.getXIn(), localization.getYIn());
+            telemetry.addData("当前 Heading (°)", "%.1f", localization.getHeadingDeg());
+        } else if (AutoEndPose.hasValue()) {
+            telemetry.addData("待恢复 X/Y (in)", "(%.2f, %.2f)",
+                    AutoEndPose.getXIn(), AutoEndPose.getYIn());
+            telemetry.addData("待恢复 Heading (°)", "%.1f",
+                    Math.toDegrees(AutoEndPose.getHeadingRad()));
+            telemetry.addLine("等待 Pinpoint READY，尚未读取有效坐标");
+        }
+        telemetry.update();
+    }
+
     /** 完整按键绑定：所有控制均使用 Gamepad1，Gamepad2 未使用。 */
     private void addControlHelp() {
         telemetry.addLine("【底盘】左摇杆：场地坐标移动；右摇杆左右：转向");
@@ -66,23 +88,25 @@ public class Teleop extends OpMode {
         telemetry.addLine("【云台】D-pad 左/右：自瞄偏移或锁定角 +2°/-2°；X/Y 互斥");
         telemetry.addLine("【云台】普通模式回中 0.5；软限位 ±90°（位置 0.2~0.8）");
         telemetry.addLine("【Shooter】A：3300 RPM 开/关");
-        telemetry.addLine("【联合发射】按住 B：飞轮、自瞄、就绪后进料；松开停止");
+        telemetry.addLine("【联合发射】B 单击：停底盘/Intake，自瞄稳定后 Transit 发射 3 秒");
+        telemetry.addLine("【联合发射】发射中再按 B：立即取消；Start 不再复位");
         telemetry.addLine("【Blocker】LB：打开/关闭（位置需实机校准）");
         telemetry.addLine("【Blocker】D-pad 上/下：测试变量加/减 1");
         telemetry.addLine("【Intake】RB 按住：仅 Intake 全速正转，Transit 停止");
         telemetry.addLine("【Intake】RT/LT 按住：Intake + Transit 正转/反转，力度随扳机");
         telemetry.addLine("【优先级】RB > RT > LT；全部松开则 Intake + Transit 停止");
-        telemetry.addLine("【复位】Start：IMU 零向、Pinpoint (8,111,0°)、云台回普通模式");
+        telemetry.addLine("【复位】左摇杆按下：IMU 零向、Pinpoint (8,111,0°)、云台普通模式");
     }
 
     @Override
     public void start() {
         lastTime = getRuntime();
         previousA = previousX = previousY = previousLeft = previousRight = false;
+        shooter.start();
         blockerCommand.start();
         previousUp = gamepad1.dpad_up;
         previousDown = gamepad1.dpad_down;
-        previousStart = true;
+        previousLeftStick = gamepad1.left_stick_button;
         previousB = gamepad1.b;
     }
 
@@ -94,12 +118,20 @@ public class Teleop extends OpMode {
 
         localization.update();
         if (gamepad1.b && !previousB) {
-            CommandScheduler.getInstance().schedule(aimAndShootCommand);
-        } else if (!gamepad1.b && previousB) {
-            CommandScheduler.getInstance().cancel(aimAndShootCommand);
+            if (CommandScheduler.getInstance().isScheduled(aimAndShootCommand)) {
+                CommandScheduler.getInstance().cancel(aimAndShootCommand);
+            } else {
+                CommandScheduler.getInstance().schedule(aimAndShootCommand);
+            }
         }
         boolean autoShooting = CommandScheduler.getInstance().isScheduled(aimAndShootCommand);
-        driveCommand.update(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        if (autoShooting) {
+            // 一键发射期间锁定底盘，忽略两个摇杆的移动输入。
+            drive.stop();
+        } else {
+            driveCommand.update(-gamepad1.left_stick_y, gamepad1.left_stick_x,
+                    gamepad1.right_stick_x);
+        }
 
         turretCommand.update(!autoShooting && gamepad1.x && !previousX,
                 !autoShooting && gamepad1.y && !previousY,
@@ -118,17 +150,21 @@ public class Teleop extends OpMode {
             blockerCommand.update();
             if (gamepad1.dpad_up && !previousUp && !gamepad1.dpad_down) blocker.addposition();
             if (gamepad1.dpad_down && !previousDown && !gamepad1.dpad_up) blocker.minposition();
-            intake.applyManualControl(gamepad1.right_bumper, gamepad1.right_trigger, gamepad1.left_trigger);
+            intake.applyManualControl(gamepad1.right_bumper, gamepad1.right_trigger,
+                    gamepad1.left_trigger);
         }
 
-        if (gamepad1.start && !previousStart) resetLocalizationCommand.execute();
+        if (gamepad1.left_stick_button && !previousLeftStick) {
+            CommandScheduler.getInstance().cancel(aimAndShootCommand);
+            resetLocalizationCommand.execute();
+        }
 
         previousA = gamepad1.a;
         previousX = gamepad1.x;
         previousY = gamepad1.y;
         previousLeft = gamepad1.dpad_left;
         previousRight = gamepad1.dpad_right;
-        previousStart = gamepad1.start;
+        previousLeftStick = gamepad1.left_stick_button;
         previousUp = gamepad1.dpad_up;
         previousDown = gamepad1.dpad_down;
         previousB = gamepad1.b;
@@ -144,7 +180,7 @@ public class Teleop extends OpMode {
                 : turret.isLockMode() ? "锁定 (Y 关闭)"
                 : "常规 0.5 (X自瞄/Y锁定)";
 
-        telemetry.addData("IMU Yaw (°)", "%.1f", yawDeg);
+        telemetry.addData("机器人场地 Yaw (°)", "%.1f", yawDeg);
         telemetry.addData("底盘 FL/BL/FR/BR", "%.2f / %.2f / %.2f / %.2f",
                 drive.getFrontLeftPower(), drive.getBackLeftPower(),
                 drive.getFrontRightPower(), drive.getBackRightPower());
@@ -155,7 +191,8 @@ public class Teleop extends OpMode {
                     localization.getXIn(), localization.getYIn());
             telemetry.addData("Pinpoint Heading (°)", "%.1f", localization.getHeadingDeg());
             telemetry.addData("Pinpoint - IMU 差值 (°)", "%.1f",
-                    TurretSubsystem.normalizeDegrees(localization.getHeadingDeg() - yawDeg));
+                    TurretSubsystem.normalizeDegrees(
+                            localization.getHeadingDeg() - localization.getImuYawDegrees()));
         }
 
         telemetry.addData("云台状态", turretMode);

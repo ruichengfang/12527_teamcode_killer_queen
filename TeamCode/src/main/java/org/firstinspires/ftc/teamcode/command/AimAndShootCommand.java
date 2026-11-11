@@ -9,13 +9,16 @@ import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
 import java.util.function.DoubleSupplier;
 
-/** 按住时启动飞轮并自瞄，满足条件后开启挡板和进料。 */
+/** 单击启动：自瞄和飞轮稳定后开启挡板，仅用 Transit 定时发射已有小球。 */
 public class AimAndShootCommand extends CommandBase {
     // 暂定阈值；舵机没有位置反馈，等待时间不能证明云台实际到位。
     private static final double RPM_TOLERANCE = 200.0;
     private static final double RPM_STABLE_SECONDS = 0.30;
     private static final double AIM_STABLE_SECONDS = 0.60;
     private static final double AIM_POSITION_TOLERANCE = 0.01;
+    // 没有球数传感器，暂以连续进料时间表示“发射全部”，按实机球数调整。
+    private static final double FEED_DURATION_SECONDS = 3.0;
+
     private final ShooterSubsystem shooter;
     private final TurretSubsystem turret;
     private final BlockerSubsystem blocker;
@@ -25,6 +28,7 @@ public class AimAndShootCommand extends CommandBase {
     private double rpmStableSince;
     private double aimStableSince;
     private double lastAimPosition;
+    private double feedStartedAt;
     private String state = "未启动";
 
     public AimAndShootCommand(ShooterSubsystem shooter, TurretSubsystem turret,
@@ -44,6 +48,7 @@ public class AimAndShootCommand extends CommandBase {
         rpmStableSince = Double.NaN;
         aimStableSince = Double.NaN;
         lastAimPosition = Double.NaN;
+        feedStartedAt = Double.NaN;
         blocker.setOpen(false);
         intake.stop();
         shooter.start();
@@ -58,6 +63,7 @@ public class AimAndShootCommand extends CommandBase {
         if (!localizationReady) {
             turret.setAimMode(false, false);
             rpmStableSince = aimStableSince = lastAimPosition = Double.NaN;
+            feedStartedAt = Double.NaN;
             blocker.setOpen(false);
             intake.stop();
             state = "等待 Pinpoint 就绪";
@@ -91,9 +97,14 @@ public class AimAndShootCommand extends CommandBase {
         boolean feed = aimSettled && rpmSettled;
         blocker.setOpen(feed);
         if (feed) {
-            intake.setPowers(1.0, 1.0);
-            state = "进料中";
+            if (Double.isNaN(feedStartedAt)) {
+                feedStartedAt = now;
+            }
+            // 自动发射不再吸入新球，仅由 Transit 输送已有球。
+            intake.setPowers(0.0, 1.0);
+            state = "发射中：Intake 停止，Transit 进料";
         } else {
+            feedStartedAt = Double.NaN;
             intake.stop();
             state = !aimValid ? "等待有效且可达的瞄准角"
                     : !aimSettled ? "等待云台目标稳定" : "等待飞轮转速稳定";
@@ -107,12 +118,13 @@ public class AimAndShootCommand extends CommandBase {
         shooter.stop();
         shooter.update(1e-4);
         turret.setAimMode(false, false);
-        state = "已停止";
+        state = interrupted ? "已取消" : "发射完成";
     }
 
     @Override
     public boolean isFinished() {
-        return false;
+        return !Double.isNaN(feedStartedAt)
+                && time.getAsDouble() - feedStartedAt >= FEED_DURATION_SECONDS;
     }
 
     public String getState() {

@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.teamcode.AutoEndPose;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 集中管理 Control Hub IMU 与 GoBilda Pinpoint 定位。 */
@@ -17,20 +18,39 @@ public class LocalizationSubsystem extends SubsystemBase {
     public static final double START_Y_IN = 111.0;
     public static final double START_HEADING_DEG = 0.0;
 
-    private static final double PINPOINT_X_OFFSET_MM = 20.0;
-    private static final double PINPOINT_Y_OFFSET_MM = -135.2;
+    // 与 Pedro Constants.localizerConfig 保持一致，避免自动和手动坐标系不同。
+    private static final double PINPOINT_X_OFFSET_IN = 0.787402;
+    private static final double PINPOINT_Y_OFFSET_IN = 5.323543;
 
     private final IMU imu;
     private GoBildaPinpointDriver pinpoint;
 
     private boolean pinpointReady;
     private boolean needSetStartPosition = true;
+    private boolean positionInitialized;
+    private double pendingXIn;
+    private double pendingYIn;
+    private double pendingHeadingRad;
     private String pinpointStatus = "N/A";
     private double xIn;
     private double yIn;
     private double headingDeg;
 
+    /** 手动使用：有自动记录则恢复自动末位置，否则使用默认起点。 */
     public LocalizationSubsystem(HardwareMap hardwareMap) {
+        this(hardwareMap,
+                AutoEndPose.hasValue() ? AutoEndPose.getXIn() : START_X_IN,
+                AutoEndPose.hasValue() ? AutoEndPose.getYIn() : START_Y_IN,
+                AutoEndPose.hasValue() ? AutoEndPose.getHeadingRad() : Math.toRadians(START_HEADING_DEG));
+    }
+
+    /** 自动使用：明确指定自己的起点，不读取此前保存的自动末位置。 */
+    public LocalizationSubsystem(HardwareMap hardwareMap, double initialXIn,
+                                 double initialYIn, double initialHeadingRad) {
+        pendingXIn = initialXIn;
+        pendingYIn = initialYIn;
+        pendingHeadingRad = initialHeadingRad;
+
         imu = hardwareMap.get(IMU.class, NameConstants.IMU);
         RevHubOrientationOnRobot orientation = new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
@@ -40,7 +60,11 @@ public class LocalizationSubsystem extends SubsystemBase {
 
         try {
             pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, NameConstants.PINPOINT);
-            pinpoint.setOffsets(PINPOINT_X_OFFSET_MM, PINPOINT_Y_OFFSET_MM, DistanceUnit.MM);
+            pinpoint.setEncoderResolution(
+                    GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+            pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                    GoBildaPinpointDriver.EncoderDirection.FORWARD);
+            pinpoint.setOffsets(PINPOINT_X_OFFSET_IN, PINPOINT_Y_OFFSET_IN, DistanceUnit.INCH);
             pinpoint.resetPosAndIMU();
             pinpointReady = true;
         } catch (Exception exception) {
@@ -58,9 +82,17 @@ public class LocalizationSubsystem extends SubsystemBase {
         GoBildaPinpointDriver.DeviceStatus status = pinpoint.getDeviceStatus();
         pinpointStatus = status.toString();
 
-        if (needSetStartPosition && status == GoBildaPinpointDriver.DeviceStatus.READY) {
-            setPinpointStartPosition();
+        // 复位尚未完成时不能写入或读取有效位置。
+        if (status != GoBildaPinpointDriver.DeviceStatus.READY) {
+            return;
+        }
+
+        if (needSetStartPosition) {
+            setPinpointPosition(pendingXIn, pendingYIn, pendingHeadingRad);
+            pinpoint.update();
+            pinpointStatus = pinpoint.getDeviceStatus().toString();
             needSetStartPosition = false;
+            positionInitialized = true;
         }
 
         Pose2D pose = pinpoint.getPosition();
@@ -69,24 +101,33 @@ public class LocalizationSubsystem extends SubsystemBase {
         headingDeg = pinpoint.getHeading(AngleUnit.DEGREES);
     }
 
+    /** Start 键仍恢复手动默认起点，不修改已保存的自动末位置。 */
     public void reset() {
         imu.resetYaw();
         if (pinpointReady) {
-            setPinpointStartPosition();
-            needSetStartPosition = false;
+            pendingXIn = START_X_IN;
+            pendingYIn = START_Y_IN;
+            pendingHeadingRad = Math.toRadians(START_HEADING_DEG);
+            needSetStartPosition = true;
+            positionInitialized = false;
+            update();
         }
     }
 
-    private void setPinpointStartPosition() {
+    private void setPinpointPosition(double xIn, double yIn, double headingRad) {
         pinpoint.setPosition(new Pose2D(
-                DistanceUnit.INCH, START_X_IN, START_Y_IN,
-                AngleUnit.DEGREES, START_HEADING_DEG));
-        xIn = START_X_IN;
-        yIn = START_Y_IN;
-        headingDeg = START_HEADING_DEG;
+                DistanceUnit.INCH, xIn, yIn,
+                AngleUnit.RADIANS, headingRad));
+        this.xIn = xIn;
+        this.yIn = yIn;
+        headingDeg = Math.toDegrees(headingRad);
     }
 
+    /** 底盘和云台统一使用场地航向；Pinpoint 不可用时才回退到 Control Hub IMU。 */
     public double getYawRadians() {
+        if (positionInitialized) {
+            return Math.toRadians(headingDeg);
+        }
         return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
     }
 
@@ -94,8 +135,16 @@ public class LocalizationSubsystem extends SubsystemBase {
         return Math.toDegrees(getYawRadians());
     }
 
+    public double getImuYawDegrees() {
+        return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+    }
+
     public boolean isPinpointReady() {
         return pinpointReady;
+    }
+
+    public boolean isPositionInitialized() {
+        return positionInitialized;
     }
 
     public String getPinpointStatus() {
