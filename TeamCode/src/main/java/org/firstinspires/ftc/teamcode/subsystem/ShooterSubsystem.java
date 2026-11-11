@@ -158,7 +158,7 @@ public class ShooterSubsystem extends SubsystemBase {
     public boolean isReady() {
         return ready;
     }
-6
+
     /** KQ 没有俯仰舵机，俯仰条件恒满足。 */
     public boolean isPitchReady() {
         return true;
