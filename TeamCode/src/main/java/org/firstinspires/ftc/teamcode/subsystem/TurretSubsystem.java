@@ -8,6 +8,8 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
 public class TurretSubsystem extends SubsystemBase {
+    // 预留固定中位模式，按用户要求暂不启用。确认后再改为 true。
+    public static final boolean FIXED_POSITION_ENABLED = false;
     public static final double INIT_POSITION = 0.5;
     public static final double SOFT_LIMIT_DEG = 90.0;
     public static final double MANUAL_STEP_DEG = 2.0;
@@ -26,6 +28,7 @@ public class TurretSubsystem extends SubsystemBase {
     private static final double AIM_SWITCH_HYSTERESIS_IN = 1.0;
     private static final double AIM_MIN_DISTANCE_IN = 0.5;
 
+    private final boolean fixedPositionEnabled;
     private final Servo leftServo;
     private final Servo rightServo;
 
@@ -48,6 +51,12 @@ public class TurretSubsystem extends SubsystemBase {
     private double rawPosition = INIT_POSITION;
 
     public TurretSubsystem(HardwareMap hardwareMap) {
+        this(hardwareMap, FIXED_POSITION_ENABLED);
+    }
+
+    /** 模式在构造时确定，避免运行中切换造成舵机跳转；布尔参数也供离线验证使用。 */
+    public TurretSubsystem(HardwareMap hardwareMap, boolean fixedPositionEnabled) {
+        this.fixedPositionEnabled = fixedPositionEnabled;
         leftServo = hardwareMap.get(Servo.class, NameConstants.TURRET_LEFT);
         rightServo = hardwareMap.get(Servo.class, NameConstants.TURRET_RIGHT);
         // 左右舵机按镜像安装配置；实机确认转向和中位。
@@ -61,6 +70,10 @@ public class TurretSubsystem extends SubsystemBase {
     }
 
     public boolean setAimMode(boolean enabled, boolean pinpointReady) {
+        if (fixedPositionEnabled) {
+            holdInitialPosition();
+            return !enabled;
+        }
         if (enabled && !pinpointReady) {
             return false;
         }
@@ -77,6 +90,10 @@ public class TurretSubsystem extends SubsystemBase {
     }
 
     public void toggleLockMode(double robotYawDeg) {
+        if (fixedPositionEnabled) {
+            holdInitialPosition();
+            return;
+        }
         lockMode = !lockMode;
         if (lockMode) {
             aimMode = false;
@@ -88,6 +105,7 @@ public class TurretSubsystem extends SubsystemBase {
     }
 
     public void adjustLeft() {
+        if (fixedPositionEnabled) return;
         if (aimMode) {
             aimOffsetDeg = normalizeDegrees(aimOffsetDeg + MANUAL_STEP_DEG);
         } else if (lockMode) {
@@ -96,6 +114,7 @@ public class TurretSubsystem extends SubsystemBase {
     }
 
     public void adjustRight() {
+        if (fixedPositionEnabled) return;
         if (aimMode) {
             aimOffsetDeg = normalizeDegrees(aimOffsetDeg - MANUAL_STEP_DEG);
         } else if (lockMode) {
@@ -104,6 +123,10 @@ public class TurretSubsystem extends SubsystemBase {
     }
 
     public void reset() {
+        if (fixedPositionEnabled) {
+            holdInitialPosition();
+            return;
+        }
         targetYawDeg = LocalizationSubsystem.START_HEADING_DEG;
         aimOffsetDeg = 0.0;
         hasValidAim = false;
@@ -115,6 +138,12 @@ public class TurretSubsystem extends SubsystemBase {
     public void update(LocalizationSubsystem localization) {
         double yawRad = localization.getYawRadians();
         double yawDeg = Math.toDegrees(yawRad);
+        if (fixedPositionEnabled) {
+            holdInitialPosition();
+            actualAbsoluteDeg = normalizeDegrees(yawDeg + MOUNT_OFFSET_DEG);
+            updateAimDistance(localization);
+            return;
+        }
 
         if (localization.isPinpointReady()) {
             updateAimPoint(localization.getYIn());
@@ -139,6 +168,20 @@ public class TurretSubsystem extends SubsystemBase {
         }
 
         setServoPositions(position);
+    }
+
+    /** 固定舵机位置，不是固定场地绝对朝向；转动车身时云台不补偿。 */
+    private void holdInitialPosition() {
+        position = rawPosition = INIT_POSITION;
+        aimMode = lockMode = hasValidAim = false;
+        aimOffsetDeg = lastValidAimTargetDeg = yawErrorDeg = effectiveTargetDeg = 0.0;
+        targetYawDeg = LocalizationSubsystem.START_HEADING_DEG;
+        reachable = true;
+        setServoPositions(INIT_POSITION);
+    }
+
+    public boolean isFixedPositionEnabled() {
+        return fixedPositionEnabled;
     }
 
     private void updateAimPoint(double robotYIn) {

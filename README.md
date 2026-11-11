@@ -1,3 +1,7 @@
+## Killerqueen 团队代码
+
+[CommandBase 结构与逐链路对照](docs/COMMAND_BASE.md) · [本地行为验证](local-tests/README.md)
+
 ## NOTICE
 
 This repository contains the public FTC SDK for the BIOBUZZ (2026-2027) competition season.

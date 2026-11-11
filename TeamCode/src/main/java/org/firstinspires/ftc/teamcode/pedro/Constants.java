@@ -14,6 +14,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
 
 public class Constants {
     // Based on the existing robot code; confirm directions with Mecanum Tuner.
@@ -31,8 +32,9 @@ public class Constants {
     public static PinpointConfig localizerConfig = new PinpointConfig(c -> {
         c.name.set("od");
         c.podType.set(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        c.xPodOffset.set(0.35498074659212364);
-        c.yPodOffset.set(-5.000615457850178);
+        // 直接引用遥操的实测值，避免两边各写一份后再次漂移。
+        c.xPodOffset.set(LocalizationSubsystem.PINPOINT_X_OFFSET_IN);
+        c.yPodOffset.set(LocalizationSubsystem.PINPOINT_Y_OFFSET_IN);
         c.xPodDirection.set(GoBildaPinpointDriver.EncoderDirection.FORWARD);
         c.yPodDirection.set(GoBildaPinpointDriver.EncoderDirection.FORWARD);
         c.globalDistanceUnit.set(DistanceUnit.INCH);

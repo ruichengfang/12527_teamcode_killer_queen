@@ -1,66 +1,58 @@
 package org.firstinspires.ftc.teamcode.autopath;
 
+import com.arcrobotics.ftclib.command.Command;
+import com.arcrobotics.ftclib.command.CommandScheduler;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.hardware.DcMotor;
-
 import org.firstinspires.ftc.teamcode.AutoEndPose;
-import org.firstinspires.ftc.teamcode.NameConstants;
+import org.firstinspires.ftc.teamcode.command.TimedDriveCommand;
 import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
 
-/** 简易自动：四个底盘电机以 0.7 功率前进 0.2 秒，然后立即刹车停止。 */
+/** 四轮以 0.7 功率前进 0.2 秒；保留 jrc 定位继承，并由命令统一结束/取消。 */
 @Autonomous(name = "AutoPath_demo", group = "Autonomous")
 public class AutoPath_demo extends LinearOpMode {
     private static final double FORWARD_POWER = 0.7;
-    private static final long DRIVE_TIME_MS = 200;
-
-    private DcMotor frontLeft;
-    private DcMotor frontRight;
-    private DcMotor backLeft;
-    private DcMotor backRight;
+    private static final double DRIVE_TIME_SECONDS = 0.2;
     private LocalizationSubsystem localization;
 
     @Override
     public void runOpMode() {
         AutoEndPose.clear();
-        frontLeft = hardwareMap.get(DcMotor.class, NameConstants.FRONT_LEFT);
-        frontRight = hardwareMap.get(DcMotor.class, NameConstants.FRONT_RIGHT);
-        backLeft = hardwareMap.get(DcMotor.class, NameConstants.BACK_LEFT);
-        backRight = hardwareMap.get(DcMotor.class, NameConstants.BACK_RIGHT);
-
-        configureMotor(frontLeft, DcMotor.Direction.REVERSE);
-        configureMotor(frontRight, DcMotor.Direction.FORWARD);
-        configureMotor(backLeft, DcMotor.Direction.REVERSE);
-        configureMotor(backRight, DcMotor.Direction.FORWARD);
-
-        // 简易自动固定从自己的起点开始，不读取上一场自动的末位置。
+        CommandScheduler.getInstance().reset();
+        DriveSubsystem drive = new DriveSubsystem(hardwareMap);
+        drive.stop();
         localization = new LocalizationSubsystem(hardwareMap,
-                LocalizationSubsystem.START_X_IN,
-                LocalizationSubsystem.START_Y_IN,
+                LocalizationSubsystem.START_X_IN, LocalizationSubsystem.START_Y_IN,
                 Math.toRadians(LocalizationSubsystem.START_HEADING_DEG));
-
-        while (!isStarted() && !isStopRequested()) {
-            localization.update();
-            showPose("等待开始；启动后前进 0.2 秒");
-            sleep(20);
-        }
-        if (isStopRequested()) {
-            return;
-        }
-
+        Command motion = new TimedDriveCommand(drive, FORWARD_POWER, DRIVE_TIME_SECONDS,
+                this::getRuntime);
+        boolean autoStarted = false;
         try {
-            setAllPower(FORWARD_POWER);
-            long driveEndMs = System.currentTimeMillis() + DRIVE_TIME_MS;
-            while (opModeIsActive() && System.currentTimeMillis() < driveEndMs) {
+            while (!isStarted() && !isStopRequested()) {
+                localization.update();
+                showPose("等待开始；启动后前进 0.2 秒");
+                sleep(20);
+            }
+            if (isStopRequested()) return;
+            autoStarted = true;
+            CommandScheduler.getInstance().schedule(motion);
+            while (opModeIsActive() && CommandScheduler.getInstance().isScheduled(motion)) {
+                CommandScheduler.getInstance().run();
+                if (!CommandScheduler.getInstance().isScheduled(motion)) break;
                 localization.update();
                 saveCurrentPose();
                 showPose("前进中");
                 sleep(5);
             }
         } finally {
-            setAllPower(0.0);
-            localization.update();
-            saveCurrentPose();
+            CommandScheduler.getInstance().cancelAll();
+            drive.stop();
+            if (autoStarted) {
+                localization.update();
+                saveCurrentPose();
+            }
+            CommandScheduler.getInstance().reset();
         }
     }
 
@@ -83,19 +75,5 @@ public class AutoPath_demo extends LinearOpMode {
             telemetry.addLine("等待 Pinpoint READY 并写入起点");
         }
         telemetry.update();
-    }
-
-    private static void configureMotor(DcMotor motor, DcMotor.Direction direction) {
-        motor.setDirection(direction);
-        motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        motor.setPower(0.0);
-    }
-
-    private void setAllPower(double power) {
-        frontLeft.setPower(power);
-        frontRight.setPower(power);
-        backLeft.setPower(power);
-        backRight.setPower(power);
     }
 }

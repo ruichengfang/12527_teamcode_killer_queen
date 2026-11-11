@@ -18,9 +18,10 @@ public class LocalizationSubsystem extends SubsystemBase {
     public static final double START_Y_IN = 111.0;
     public static final double START_HEADING_DEG = 0.0;
 
-    // 目前沿用 jrc 中的手动定位值；与 Pedro 配置不同，需用实测结果统一。
-    private static final double PINPOINT_X_OFFSET_IN = 0.787402;
-    private static final double PINPOINT_Y_OFFSET_IN = 5.323543;
+    // 遥操实测值，也是全车唯一的 pod 偏移来源；pedro/Constants.java 的
+    // xPodOffset / yPodOffset 必须与此相同，改一处要同时改另一处。
+    public static final double PINPOINT_X_OFFSET_IN = 0.787402;
+    public static final double PINPOINT_Y_OFFSET_IN = 5.323543;
 
     private final IMU imu;
     private GoBildaPinpointDriver pinpoint;
@@ -104,7 +105,7 @@ public class LocalizationSubsystem extends SubsystemBase {
         headingDeg = pinpoint.getHeading(AngleUnit.DEGREES);
     }
 
-    /** Start 键仍恢复手动默认起点，不修改已保存的自动末位置。 */
+    /** 左摇杆按下仍恢复手动默认起点，不修改已保存的自动末位置。 */
     public void reset() {
         imu.resetYaw();
         if (pinpointReady) {

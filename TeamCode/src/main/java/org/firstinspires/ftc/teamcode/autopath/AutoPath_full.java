@@ -1,26 +1,25 @@
 package org.firstinspires.ftc.teamcode.autopath;
 
-import static com.pedropathing.ivy.Scheduler.schedule;
-import static com.pedropathing.ivy.groups.Groups.sequential;
-import static com.pedropathing.ivy.pedro.PedroCommands.follow;
-
+import com.arcrobotics.ftclib.command.Command;
+import com.arcrobotics.ftclib.command.CommandScheduler;
+import com.arcrobotics.ftclib.command.SequentialCommandGroup;
 import com.pedropathing.api.Paths;
 import com.pedropathing.api.PoseFactory;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.ivy.Command;
-import com.pedropathing.ivy.Scheduler;
 import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-
 import org.firstinspires.ftc.teamcode.AutoEndPose;
+import org.firstinspires.ftc.teamcode.command.FollowPathCommand;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
+import org.firstinspires.ftc.teamcode.subsystem.PathFollowerSubsystem;
 
 @Autonomous(name = "AutoPath", group = "Autonomous")
 public class AutoPath_full extends LinearOpMode {
     private Follower follower;
     private boolean autoStarted;
+    private PathFollowerSubsystem drive;
     private final PoseFactory poseFactory = PoseFactory.degrees();
 
     private final Pose start = poseFactory.of(59.75, 6.75, 90);
@@ -31,17 +30,18 @@ public class AutoPath_full extends LinearOpMode {
     private final Pose point3 = poseFactory.of(15, 110, 180);
 
     private Command autoRoutine() {
-        return sequential(
-                follow(follower, path1()),
-                follow(follower, path2()),
-                follow(follower, path3()));
+        return new SequentialCommandGroup(
+                new FollowPathCommand(drive, path1()),
+                new FollowPathCommand(drive, path2()),
+                new FollowPathCommand(drive, path3()));
     }
 
     @Override
     public void runOpMode() {
         AutoEndPose.clear();
-        Scheduler.reset();
+        CommandScheduler.getInstance().reset();
         follower = Constants.create(hardwareMap);
+        drive = new PathFollowerSubsystem(follower, this::saveCurrentPose);
         try {
             follower.setPose(start);
             follower.update();
@@ -49,12 +49,10 @@ public class AutoPath_full extends LinearOpMode {
             waitForStart();
             if (isStopRequested()) return;
             autoStarted = true;
-            schedule(autoRoutine());
+            CommandScheduler.getInstance().schedule(autoRoutine());
 
             while (opModeIsActive()) {
-                follower.update();
-                saveCurrentPose();
-                Scheduler.execute();
+                CommandScheduler.getInstance().run();
                 telemetry.addData("x (in)", follower.pose().x());
                 telemetry.addData("y (in)", follower.pose().y());
                 telemetry.addData("heading (deg)", Math.toDegrees(follower.pose().heading()));
@@ -66,12 +64,10 @@ public class AutoPath_full extends LinearOpMode {
                 telemetry.update();
             }
         } finally {
-            if (autoStarted) {
-                saveCurrentPose();
-            }
-            Scheduler.reset();
-            follower.stop();
-            follower.drivetrain.stop();
+            if (autoStarted) saveCurrentPose();
+            CommandScheduler.getInstance().cancelAll();
+            drive.stop();
+            CommandScheduler.getInstance().reset();
         }
     }
 

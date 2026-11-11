@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.subsystem;
 
+import com.arcrobotics.ftclib.command.SubsystemBase;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.arcrobotics.ftclib.command.SubsystemBase;
-
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 发射通道挡板。 */
@@ -31,6 +30,7 @@ public class BlockerSubsystem extends SubsystemBase {
         testposition = open ? OPEN_POSITION : CLOSED_POSITION;
         blockerServo.setPosition(testposition);
     }
+
     public boolean isOpen() {
         return open;
     }
@@ -38,15 +38,17 @@ public class BlockerSubsystem extends SubsystemBase {
     public double getPosition() {
         return testposition;
     }
-    public void addposition(){
+
+    public void addposition() {
         testposition += 0.01;
     }
 
-    public void minposition(){
+    public void minposition() {
         testposition -= 0.01;
     }
-    @Override
-    public void periodic(){
+
+    /** 在控制命令完成按键处理后写出，避免调度器 periodic 的前置顺序改变输出。 */
+    public void flushOutput() {
         blockerServo.setPosition(testposition);
     }
 }
