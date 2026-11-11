@@ -8,8 +8,8 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
 public class TurretSubsystem extends SubsystemBase {
-    // 预留固定中位模式，按用户要求暂不启用。确认后再改为 true。
-    public static final boolean FIXED_POSITION_ENABLED = true;
+    // 固定中位模式关闭，恢复 X 键 Pinpoint 云台自瞄。
+    public static final boolean FIXED_POSITION_ENABLED = false;
     public static final double INIT_POSITION = 0.5;
     public static final double SOFT_LIMIT_DEG = 90.0;
     public static final double MANUAL_STEP_DEG = 2.0;

@@ -10,7 +10,7 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 双电机飞轮及其 PD + 前馈转速控制。 */
 public class ShooterSubsystem extends SubsystemBase {
-    public static final double SINGLE_BALL_RPM = 3300.0;
+    public static final double SINGLE_BALL_RPM = 111.0;
 
     // 达速判定（移植 OT Shooter.updateReadyState）。KQ 遥测原以“误差 < 200 RPM”作为可发射提示。
     public static final double READY_ENTER_TOLERANCE_RPM = 200.0;
@@ -23,6 +23,7 @@ public class ShooterSubsystem extends SubsystemBase {
 
     private static final double TICKS_PER_REV = 28.0;
     private static final double KP = 0.0060;
+
     private static final double KD = 0.00001;
     private static final double KF = 0.00020;
     private static final double MIN_POWER = -0.1;
@@ -157,7 +158,7 @@ public class ShooterSubsystem extends SubsystemBase {
     public boolean isReady() {
         return ready;
     }
-
+6
     /** KQ 没有俯仰舵机，俯仰条件恒满足。 */
     public boolean isPitchReady() {
         return true;
