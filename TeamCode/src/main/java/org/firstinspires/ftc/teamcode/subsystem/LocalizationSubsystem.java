@@ -18,7 +18,7 @@ public class LocalizationSubsystem extends SubsystemBase {
     public static final double START_Y_IN = 111.0;
     public static final double START_HEADING_DEG = 0.0;
 
-    // 与 Pedro Constants.localizerConfig 保持一致，避免自动和手动坐标系不同。
+    // 目前沿用 jrc 中的手动定位值；与 Pedro 配置不同，需用实测结果统一。
     private static final double PINPOINT_X_OFFSET_IN = 0.787402;
     private static final double PINPOINT_Y_OFFSET_IN = 5.323543;
 
@@ -91,6 +91,9 @@ public class LocalizationSubsystem extends SubsystemBase {
             setPinpointPosition(pendingXIn, pendingYIn, pendingHeadingRad);
             pinpoint.update();
             pinpointStatus = pinpoint.getDeviceStatus().toString();
+            if (!"READY".equals(pinpointStatus)) {
+                return;
+            }
             needSetStartPosition = false;
             positionInitialized = true;
         }

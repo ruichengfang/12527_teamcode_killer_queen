@@ -53,7 +53,8 @@ public class ShooterSubsystem extends SubsystemBase {
     }
 
     public void update(double deltaSeconds) {
-        double rawRpm = shooter0.getVelocity() * 60.0 / TICKS_PER_REV;
+        // shooter0 使用负功率发射，对应的编码器速度取反后再比较正目标转速。
+        double rawRpm = -shooter0.getVelocity() * 60.0 / TICKS_PER_REV;
         filteredRpm += RPM_FILTER_ALPHA * (rawRpm - filteredRpm);
 
         if (targetRpm <= 0.0) {

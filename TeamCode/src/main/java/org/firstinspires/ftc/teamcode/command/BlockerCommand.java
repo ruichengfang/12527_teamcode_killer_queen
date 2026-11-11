@@ -19,6 +19,11 @@ public class BlockerCommand {
         previousLeftBumper = false;
     }
 
+    /** 联合发射结束时同步 LB，避免将按住的按钮误当作新按下。 */
+    public void syncButtonState() {
+        previousLeftBumper = gamepad.left_bumper;
+    }
+
     public void update() {
         boolean leftBumper = gamepad.left_bumper;
         if (leftBumper && !previousLeftBumper) {

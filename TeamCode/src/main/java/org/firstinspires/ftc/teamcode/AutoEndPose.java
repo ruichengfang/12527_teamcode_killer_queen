@@ -21,6 +21,9 @@ public final class AutoEndPose {
     }
 
     public static synchronized void save(double xIn, double yIn, double headingRad) {
+        if (!Double.isFinite(xIn) || !Double.isFinite(yIn) || !Double.isFinite(headingRad)) {
+            return;
+        }
         AutoEndPose.xIn = xIn;
         AutoEndPose.yIn = yIn;
         AutoEndPose.headingRad = headingRad;
