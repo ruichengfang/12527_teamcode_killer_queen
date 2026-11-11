@@ -32,8 +32,8 @@ AutoPath_demo
 └─ TimedDriveCommand → DriveSubsystem
    定位循环保存 AutoEndPose，STOP 时保存最后有效位置
 
-DashTuner                      保留原 Dashboard 配置字段
-└─ DashboardTuningCommand → DashboardTuningSubsystem
+DashTuner                      Spinup 版四通道调参（Dashboard → Config → DashboardTuner）
+└─ DashboardTuningCommand → DashboardTuner
 ```
 
 所有 `command/` 类都继承 FTCLib `CommandBase`，声明所写子系统的 requirements。
@@ -98,7 +98,7 @@ B 期间，云台和飞轮控制器仍每周期运行，只屏蔽手动目标变
 - 手动航向选择保留原 `positionInitialized` 判定；初始化后短暂非 READY 时会沿用已保存场地航向。
 - 完整自动仍只有三段行驶，没有新增吸球或射击。
 - 第 2 段末 90° 到第 3 段起始 180° 的变化保留。
-- DashTuner 仍在 INIT 加载设备；运行中改设备名可能引用未加载设备，不在本次重构里改变。
+- DashTuner 已换成 Spinup 的 DashboardTuner：运行中可改设备名/模式，从机复制主机功率（不再给从机单独 setVelocity），shooterMotor2 禁止单独闭环。
 - 挡板微调不额外夹紧变量，仍由 Servo API 处理最终限幅。
 
 路径完成条件依据 [Ivy v1.1.1 PedroCommands.follow 源码](https://github.com/Pedro-Pathing/Ivy/blob/v1.1.1/pedro/src/main/java/com/pedropathing/ivy/pedro/PedroCommands.java)，

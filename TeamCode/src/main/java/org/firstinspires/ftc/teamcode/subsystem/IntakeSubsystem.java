@@ -33,6 +33,17 @@ public class IntakeSubsystem extends SubsystemBase {
         transitMotor.setPower(transitPower);
     }
 
+    /** 射击状态机分别控制 Intake 与 Transit（移植自 OT 的独立 Intake/Transit 子系统）。 */
+    public void setIntakePower(double intakePower) {
+        this.intakePower = intakePower;
+        intakeMotor.setPower(intakePower);
+    }
+
+    public void setTransitPower(double transitPower) {
+        this.transitPower = transitPower;
+        transitMotor.setPower(transitPower);
+    }
+
     /** 手动进料优先级：单独吸入 > 正向联动 > 反向联动。 */
     public void applyManualControl(boolean intakeOnly, double forward, double reverse) {
         if (intakeOnly) {

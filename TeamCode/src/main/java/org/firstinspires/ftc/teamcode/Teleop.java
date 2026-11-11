@@ -75,9 +75,9 @@ public class Teleop extends OpMode {
             telemetry.addLine("【云台】普通模式回中 0.5；软限位 ±90°（位置 0.2~0.8）");
         }
         telemetry.addLine("【Shooter】A：3300 RPM 开/关");
-        telemetry.addLine(turret.isFixedPositionEnabled()
-                ? "【联合发射】按住 B：底盘停止、启动飞轮、延时后进料；云台固定；松开停止"
-                : "【联合发射】按住 B：底盘停止，飞轮、自瞄、延时后进料；松开停止");
+        telemetry.addLine("【射击辅助】按住 B：飞轮 3300 RPM + Pinpoint 底盘自瞄 + 不推摇杆时原地锁位；");
+        telemetry.addLine("　　达速且对准稳定后开挡板、短反转再持续送料；左摇杆可场地坐标平移；松开 B 全停");
+        telemetry.addLine("【射击辅助】按住 B 时：RB 加 Intake 吸入；LT 排堵（全反转并取消送料）");
         telemetry.addLine("【Blocker】LB：打开/关闭（位置需实机校准）");
         telemetry.addLine("【Blocker】D-pad 上/下：舵机位置加/减 0.01");
         telemetry.addLine("【Intake】RB 按住：仅 Intake 全速正转，Transit 停止");
@@ -138,7 +138,13 @@ public class Teleop extends OpMode {
         }
 
         telemetry.addData("Blocker testposition（目标值）", "%.2f", blocker.getPosition());
-        telemetry.addData("联合发射", controls.getShootingState());
+        telemetry.addData("射击辅助", controls.getShootingState());
+        telemetry.addData("送料状态", controls.getShootAssist().getFiringState());
+        telemetry.addData("瞄准误差 (°)", "%.1f", controls.getAimTarget().getYawErrorDegrees());
+        telemetry.addData("目标距离 (in)", "%.1f",
+                controls.getAimTarget().getTargetHorizontalDistanceInches());
+        telemetry.addData("底盘对准锁定", controls.getAutoAim().isLocked() ? "是" : "否");
+        telemetry.addData("飞轮达速", shooter.isReady() ? "是" : "否");
 
         telemetry.addData("Shooter 目标 RPM", "%.0f", shooter.getTargetRpm());
         telemetry.addData("Shooter 实际 RPM", "%.0f", shooter.getFilteredRpm());
@@ -155,7 +161,7 @@ public class Teleop extends OpMode {
         if (turret.isAimMode() && !turret.hasValidAim()) {
             telemetry.addLine("※ 距离瞄点 ≤0.5 英寸，方向未定义；请移开后再自瞄");
         }
-        if (shooter.isRunning() && Math.abs(shooter.getError()) > 200.0) {
+        if (shooter.isRunning() && Math.abs(shooter.getError()) > ShooterSubsystem.READY_ENTER_TOLERANCE_RPM) {
             telemetry.addLine("※ Shooter RPM 未稳定，建议等到误差 < 200 再发射");
         }
 

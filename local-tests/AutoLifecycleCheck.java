@@ -31,12 +31,29 @@ public final class AutoLifecycleCheck {
             LifecycleCheck.check(AutoEndPose.hasValue(),"Formal saves actual pose");
             LifecycleCheck.close(AutoEndPose.getXIn(),ticks==1?57.1091:8.6715,"Formal saved x");
             LifecycleCheck.close(AutoEndPose.getYIn(),ticks==1?21.6998:107.8308,"Formal saved y");
-            LifecycleCheck.close(AutoEndPose.getHeadingRad(),Math.toRadians(ticks==1?90:0),"Formal heading");
-            if(ticks>=8) LifecycleCheck.check(Constants.last.events.stream()
-                .filter(e->e.startsWith("follow:")).count()==8,"Formal executes all eight paths");
+            LifecycleCheck.close(AutoEndPose.getHeadingRad(),Math.toRadians(ticks==1?270:0),"Formal heading");
+            if(ticks>=7) LifecycleCheck.check(Constants.last.events.stream()
+                .filter(e->e.startsWith("follow:")).count()==7,"Formal executes all seven paths");
         }
         LifecycleCheck.check(Constants.last.events.contains("stop")&&Constants.last.events.contains("motorStop"),
             "Formal cleanup");
+    }
+
+    static void formalTimeout() {
+        Constants.autoAdvance = false;
+        try {
+            AutoFormal op = new AutoFormal();
+            op.hardwareMap = BehaviorReplay.hardware(true);
+            op.activeTicks = 2800;
+            op.runOpMode();
+            LifecycleCheck.close(op.clock, 56.0, "Formal remains active until the OpMode stops");
+            LifecycleCheck.check(Constants.last.events.stream().filter(e -> e.startsWith("follow:")).count() == 7,
+                    "stalled segments still advance after the former route deadline");
+            LifecycleCheck.check(Constants.last.events.stream().filter(e -> e.equals("motorStop")).count() >= 8,
+                    "stalled segment transitions and route exit stop drivetrain output");
+        } finally {
+            Constants.autoAdvance = true;
+        }
     }
 
     static void demo(boolean abort,boolean pinpoint,int ticks) {
@@ -54,9 +71,25 @@ public final class AutoLifecycleCheck {
             "demo direction matches jrc");
     }
 
+    static void reservedStop() {
+        com.qualcomm.robotcore.util.ElapsedTime.now=0;
+        var drive=new org.firstinspires.ftc.teamcode.subsystem.PathFollowerSubsystem(Constants.create(BehaviorReplay.hardware(true)),()->{});
+        var command=new org.firstinspires.ftc.teamcode.command.ReservedShotWindowCommand(drive,5000);
+        command.initialize();
+        com.qualcomm.robotcore.util.ElapsedTime.now=4.999;command.execute();
+        LifecycleCheck.check(!command.isFinished(),"reserved stop must last full five seconds");
+        com.qualcomm.robotcore.util.ElapsedTime.now=5.0;
+        LifecycleCheck.check(command.isFinished(),"reserved stop expires at five seconds");
+        command.end(false);command.initialize();
+        LifecycleCheck.check(!command.isFinished(),"new reserved stop resets its deadline");
+        command.end(true);
+        LifecycleCheck.check(Constants.last.events.get(Constants.last.events.size()-1).equals("motorStop"),"interrupted reserved stop clears chassis output");
+    }
+
     public static void main(String[] args) {
         full(6,false);full(1,false);full(0,true);
-        formal(10,false);formal(1,false);formal(0,true);
+        formal(800,false);formal(1,false);formal(0,true);
+        formalTimeout();reservedStop();
         demo(false,true,30);demo(false,true,1);demo(true,true,0);demo(false,false,30);
         AutoEndPose.clear();
         System.out.println("PASS: actual auto entrypoints, final/early-stop pose save, INIT abort, demo explicit start, missing Pinpoint, motor cleanup");

@@ -26,3 +26,8 @@ python3 local-tests/run_replay.py --ftclib /path/to/core-2.1.1/jars/classes.jar
 硬件替身只用于软件等价与生命周期测试，不能据此宣布路径或机构已通过实车测试。
 DashTuner 的位置闭环回放将 I/D 设为零，避免真实库的墙钟采样使比较不可重复；
 其余控制流程与生产实现一致。非零 I/D 的实际采样行为仍需实机检查。
+
+2026-11-11：DashTuner 换成 Spinup 的 `DashboardTuner`，故从旧版逐项对照中移除，改由 `LifecycleCheck.tunerStop` 单独断言方向、主从功率、shooterMotor2 闭环禁用、运行中换绑和 STOP。
+
+2026-11-11：按住 B 改为移植自 Overtune 的 `ShootAssistCommand`（达速 + 底盘锁定后开挡板、短反转、持续送料），并新增未被调用的 `AutoShootCommand`。
+B 行为与旧基线有意不同，请使用 `--current-only`。`LifecycleCheck.shootingAndOwnership` 断言：达速前不开门不送料、锁定后反转→送料、送料提交后持续、定位失效/LT 排堵取消、松 B 全停；`autoShoot` 断言送料 500ms 完成与 3000ms 超时。

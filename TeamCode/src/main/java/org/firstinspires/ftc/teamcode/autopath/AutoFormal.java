@@ -12,19 +12,22 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import org.firstinspires.ftc.teamcode.AutoEndPose;
 import org.firstinspires.ftc.teamcode.command.FollowPathCommand;
+import org.firstinspires.ftc.teamcode.command.ReservedShotWindowCommand;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.subsystem.PathFollowerSubsystem;
 
 @Autonomous(name = "AutoFormal", group = "Autonomous")
 public class AutoFormal extends LinearOpMode {
+    private static final long SEGMENT_TIMEOUT_MS = 5000;
+    private static final long RESERVED_SHOT_MS = 5000;
     private Follower follower;
     private boolean autoStarted;
     private PathFollowerSubsystem drive;
     private final PoseFactory poseFactory = PoseFactory.degrees();
 
-    private final Pose start = poseFactory.of(54.2726, 7.9672, 90);
-    private final Pose point101path1 = poseFactory.of(57.1091, 21.6998, 90);
-    private final Pose point2Start = poseFactory.of(57.1091, 21.6998, 90);
+    private final Pose start = poseFactory.of(54.2726, 7.9672, 270);
+    private final Pose point101path1 = poseFactory.of(57.1091, 21.6998, 270);
+    private final Pose point2Start = poseFactory.of(57.1091, 21.6998, 270);
     private final Pose point2 = poseFactory.of(7.4165, 23.4434, 270);
     private final Pose point3 = poseFactory.of(7.0525, 6.141, 270);
     private final Pose point4Start = poseFactory.of(7.0525, 6.141, 270);
@@ -36,22 +39,23 @@ public class AutoFormal extends LinearOpMode {
     private final Pose point5 = poseFactory.of(46.9313, 132.8969, 90);
     private final Pose point5Control1 = poseFactory.of(44.6111, 116.5979, 0);
     private final Pose point5Control2 = poseFactory.of(45.8742, 115.0938, 0);
-    private final Pose point6 = poseFactory.of(47.19, 117.4016, 90);
-    private final Pose point7Start = poseFactory.of(47.19, 117.4016, 90);
-    private final Pose point7 = poseFactory.of(56.9942, 120.9401, 270);
-    private final Pose point8Start = poseFactory.of(56.9942, 120.9401, 270);
-    private final Pose point8 = poseFactory.of(8.6715, 107.8308, 0);
+    private final Pose point6 = poseFactory.of(57.2319, 120.5968, 90);
+    private final Pose point6Control1 = poseFactory.of(42.3092, 108.1567, 0);
+    private final Pose point7Start = poseFactory.of(57.2319, 120.5968, 270);
+    private final Pose point7 = poseFactory.of(8.6715, 107.8308, 0);
 
     private Command autoRoutine() {
         return new SequentialCommandGroup(
-                new FollowPathCommand(drive, path101path1()),
-                new FollowPathCommand(drive, path2()),
-                new FollowPathCommand(drive, path3()),
-                new FollowPathCommand(drive, path4()),
-                new FollowPathCommand(drive, path5()),
-                new FollowPathCommand(drive, path6()),
-                new FollowPathCommand(drive, path7()),
-                new FollowPathCommand(drive, path8()));
+                new FollowPathCommand(drive, path101path1(), SEGMENT_TIMEOUT_MS),
+                new ReservedShotWindowCommand(drive, RESERVED_SHOT_MS), // Shot point 1: placeholder only
+                new FollowPathCommand(drive, path2(), SEGMENT_TIMEOUT_MS),
+                new FollowPathCommand(drive, path3(), SEGMENT_TIMEOUT_MS),
+                new FollowPathCommand(drive, path4(), SEGMENT_TIMEOUT_MS),
+                new ReservedShotWindowCommand(drive, RESERVED_SHOT_MS), // Shot point 4: placeholder only
+                new FollowPathCommand(drive, path5(), SEGMENT_TIMEOUT_MS),
+                new FollowPathCommand(drive, path6(), SEGMENT_TIMEOUT_MS),
+                new ReservedShotWindowCommand(drive, RESERVED_SHOT_MS), // Shot point 6: placeholder only
+                new FollowPathCommand(drive, path7(), SEGMENT_TIMEOUT_MS));
     }
 
     @Override
@@ -82,10 +86,13 @@ public class AutoFormal extends LinearOpMode {
                 telemetry.update();
             }
         } finally {
-            if (autoStarted) saveCurrentPose();
-            CommandScheduler.getInstance().cancelAll();
-            drive.stop();
-            CommandScheduler.getInstance().reset();
+            try {
+                if (autoStarted) saveCurrentPose();
+                CommandScheduler.getInstance().cancelAll();
+            } finally {
+                try { drive.stop(); }
+                finally { CommandScheduler.getInstance().reset(); }
+            }
         }
     }
 
@@ -117,14 +124,11 @@ public class AutoFormal extends LinearOpMode {
     }
 
     private Path path6() {
-        return Paths.line(point5, point6).constant(point6);
+        return Paths.curve(point5, point6Control1, point6).constant(point6);
     }
 
     private Path path7() {
         return Paths.line(point7Start, point7).linear(point7Start, point7);
     }
 
-    private Path path8() {
-        return Paths.line(point8Start, point8).linear(point8Start, point8);
-    }
 }

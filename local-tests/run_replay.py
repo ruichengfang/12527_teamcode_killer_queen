@@ -28,17 +28,25 @@ public class HardwareMap {
   if (!devices.containsKey(name)) throw new IllegalArgumentException(name);
   return type.cast(devices.get(name));
  }
+ public <T> T tryGet(Class<T> type,String name) {
+  Object d=devices.get(name); return type.isInstance(d)?type.cast(d):null;
+ }
+}''',
+'com/qualcomm/robotcore/hardware/DcMotorSimple.java': '''
+package com.qualcomm.robotcore.hardware;
+public class DcMotorSimple {
+ public enum Direction {FORWARD,REVERSE}
 }''',
 'com/qualcomm/robotcore/hardware/DcMotor.java': '''
 package com.qualcomm.robotcore.hardware;
-public class DcMotor {
- public enum Direction {FORWARD,REVERSE}
+public class DcMotor extends DcMotorSimple {
  public enum RunMode {RUN_WITHOUT_ENCODER,RUN_USING_ENCODER}
  public enum ZeroPowerBehavior {BRAKE,FLOAT}
  public double power; public Direction direction; public RunMode mode;
  public ZeroPowerBehavior zero;
  public void setPower(double v){power=v;} public double getPower(){return power;}
  public void setDirection(Direction v){direction=v;} public void setMode(RunMode v){mode=v;}
+ public RunMode getMode(){return mode;}
  public void setZeroPowerBehavior(ZeroPowerBehavior v){zero=v;}
 }''',
 'com/qualcomm/robotcore/hardware/DcMotorEx.java': '''
@@ -98,7 +106,8 @@ package org.firstinspires.ftc.robotcore.external.navigation;
 public enum AngleUnit {RADIANS,DEGREES}''',
 'org/firstinspires/ftc/robotcore/external/navigation/DistanceUnit.java': '''
 package org.firstinspires.ftc.robotcore.external.navigation;
-public enum DistanceUnit {MM,INCH,CM}''',
+public enum DistanceUnit {MM,INCH,CM;
+ public double toCm(double v){return this==INCH?v*2.54:this==MM?v/10:v;}}''',
 'org/firstinspires/ftc/robotcore/external/navigation/Pose2D.java': '''
 package org.firstinspires.ftc.robotcore.external.navigation;
 public class Pose2D {
@@ -124,6 +133,8 @@ public class GoBildaPinpointDriver {
  public Pose2D getPosition(){return pose;}
  public void setPosition(Pose2D p){pose=p;}
  public double getHeading(AngleUnit u){return pose.getHeading(u);}
+ public double velX,velY;
+ public double getVelX(DistanceUnit u){return velX;} public double getVelY(DistanceUnit u){return velY;}
 }''',
 'com/qualcomm/robotcore/eventloop/opmode/TeleOp.java': '''
 package com.qualcomm.robotcore.eventloop.opmode;
@@ -163,6 +174,8 @@ public class Follower {
  public com.pedropathing.math.Pose pose=new com.pedropathing.math.Pose(0,0,0);
  public void setPose(com.pedropathing.math.Pose p){pose=p;}
  public com.pedropathing.math.Pose pose(){return pose;}
+ public com.pedropathing.math.Velocity velocity=new com.pedropathing.math.Velocity(0,0,0);
+ public com.pedropathing.math.Velocity velocity(){return velocity;}
  public Path currentPath(){return current;} public double distanceToEndpoint(){return 0;}
  public int pathIndex(){return 0;}
  public void update(){updates++;if(autoAdvance&&current!=null){pose=current.end;atEnd=true;}}
@@ -202,6 +215,15 @@ public class FtcDashboard {
 }
 
 STUBS.update({
+'com/qualcomm/robotcore/util/ElapsedTime.java': '''
+package com.qualcomm.robotcore.util;
+public class ElapsedTime {
+ public static double now;
+ private double start=now;
+ public void reset(){start=now;}
+ public double seconds(){return now-start;}
+ public double milliseconds(){return seconds()*1000;}
+}''',
 'com/qualcomm/robotcore/eventloop/opmode/Autonomous.java': '''
 package com.qualcomm.robotcore.eventloop.opmode;
 public @interface Autonomous {String name();String group() default "";}''',
@@ -213,7 +235,7 @@ public abstract class LinearOpMode extends OpMode {
  public void waitForStart(){started=!abortBeforeStart;}
  public boolean isStarted(){if(!abortBeforeStart&&++initChecks>=3)started=true;return started;}
  public boolean isStopRequested(){return stopped||abortBeforeStart;}
- public boolean opModeIsActive(){if(activeTicks--<=0){stopped=true;return false;}clock+=.02;return true;}
+ public boolean opModeIsActive(){if(activeTicks--<=0){stopped=true;return false;}clock+=.02;com.qualcomm.robotcore.util.ElapsedTime.now+=.02;return true;}
  public void sleep(long ms){clock+=ms/1000.0;}public void idle(){}
 }''',
 'com/pedropathing/math/Pose.java': '''
@@ -221,6 +243,12 @@ package com.pedropathing.math;
 public class Pose {
  private final double x,y,h;public Pose(double x,double y,double h){this.x=x;this.y=y;this.h=h;}
  public double x(){return x;}public double y(){return y;}public double heading(){return h;}
+}''',
+'com/pedropathing/math/Velocity.java': '''
+package com.pedropathing.math;
+public class Velocity {
+ public final double vx,vy,omega;public Velocity(double x,double y,double w){vx=x;vy=y;omega=w;}
+ public double linSpeed(){return Math.hypot(vx,vy);}
 }''',
 'com/pedropathing/api/PoseFactory.java': '''
 package com.pedropathing.api;
@@ -241,7 +269,8 @@ import com.pedropathing.follower.Follower;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 public class Constants {
  public static Follower last;
- public static Follower create(HardwareMap h){last=new Follower();last.autoAdvance=true;return last;}
+ public static boolean autoAdvance=true;
+ public static Follower create(HardwareMap h){last=new Follower();last.autoAdvance=autoAdvance;return last;}
 }''',
 })
 
@@ -253,6 +282,7 @@ def run(cmd, **kwargs):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ftclib', required=True, type=Path)
+    parser.add_argument('--current-only', action='store_true', help='Run current lifecycle checks after intentional behavior changes')
     args = parser.parse_args()
     jar = str(args.ftclib.resolve())
     java_home = Path(os.environ.get('JAVA_HOME', '/usr'))
@@ -261,7 +291,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='killerqueen-replay-') as temp:
         root = Path(temp)
         output = {}
-        for version in ('baseline', 'current'):
+        for version in (('current',) if args.current_only else ('baseline', 'current')):
             source = root/version/'src'
             classes = root/version/'classes'
             source.mkdir(parents=True)
@@ -278,6 +308,9 @@ def main():
             for name in files:
                 rel = Path(name).relative_to(JAVA_ROOT)
                 if rel.parts[0] == 'pedro' or (version == 'baseline' and rel.parts[0] == 'autopath'):
+                    continue
+                # DashTuner was intentionally replaced by Spinup's DashboardTuner (not equivalence-tested).
+                if str(rel) == 'tests/DashTuner.java':
                     continue
                 content = (run(['git', 'show', f'{BASELINE}:{name}'], cwd=ROOT,
                                capture_output=True).stdout if version == 'baseline'
@@ -297,6 +330,8 @@ def main():
             if version == 'current':
                 run([java, '-cp', str(classes)+os.pathsep+jar, 'LifecycleCheck'])
                 run([java, '-cp', str(classes)+os.pathsep+jar, 'AutoLifecycleCheck'])
+        if args.current_only:
+            return
         old, new = output['baseline'], output['current']
         if old != new:
             from itertools import zip_longest

@@ -9,7 +9,7 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 /** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
 public class TurretSubsystem extends SubsystemBase {
     // 预留固定中位模式，按用户要求暂不启用。确认后再改为 true。
-    public static final boolean FIXED_POSITION_ENABLED = false;
+    public static final boolean FIXED_POSITION_ENABLED = true;
     public static final double INIT_POSITION = 0.5;
     public static final double SOFT_LIMIT_DEG = 90.0;
     public static final double MANUAL_STEP_DEG = 2.0;
@@ -19,14 +19,15 @@ public class TurretSubsystem extends SubsystemBase {
     private static final double DEADBAND_DEG = 0.5;
     private static final double MECHANICAL_RATIO = 0.98;
     private static final double TURRET_SIGN = 1.0;
-    private static final double MOUNT_OFFSET_DEG = 180.0;
+    // 以下瞄点常量也供射击命令（shoot/ShotTarget）共用。
+    public static final double MOUNT_OFFSET_DEG = 180.0;
 
-    private static final double AIM_POINT_X_IN = 60.0;
-    private static final double AIM_POINT_Y_HIGH_IN = 84.0;
-    private static final double AIM_POINT_Y_LOW_IN = 60.0;
-    private static final double AIM_SWITCH_Y_IN = 72.0;
-    private static final double AIM_SWITCH_HYSTERESIS_IN = 1.0;
-    private static final double AIM_MIN_DISTANCE_IN = 0.5;
+    public static final double AIM_POINT_X_IN = 60.0;
+    public static final double AIM_POINT_Y_HIGH_IN = 84.0;
+    public static final double AIM_POINT_Y_LOW_IN = 60.0;
+    public static final double AIM_SWITCH_Y_IN = 72.0;
+    public static final double AIM_SWITCH_HYSTERESIS_IN = 1.0;
+    public static final double AIM_MIN_DISTANCE_IN = 0.5;
 
     private final boolean fixedPositionEnabled;
     private final Servo leftServo;
@@ -214,6 +215,18 @@ public class TurretSubsystem extends SubsystemBase {
         }
 
         updateServoTarget(yawRad, yawDeg);
+    }
+
+    /** Field heading that points the centered launcher at the existing aim point. */
+    public double getChassisAimHeadingRadians(LocalizationSubsystem localization) {
+        double x = localization.getXIn();
+        double y = localization.getYIn();
+        if (!Double.isFinite(x) || !Double.isFinite(y)) return Double.NaN;
+        updateAimPoint(y);
+        double dx = aimTargetX - x;
+        double dy = aimTargetY - y;
+        if (Math.hypot(dx, dy) <= AIM_MIN_DISTANCE_IN) return Double.NaN;
+        return Math.atan2(dy, dx) - Math.toRadians(MOUNT_OFFSET_DEG);
     }
 
     private void updateLock(double yawRad, double yawDeg) {

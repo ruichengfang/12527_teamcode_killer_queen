@@ -5,6 +5,10 @@ import com.arcrobotics.ftclib.command.CommandBase;
 import com.arcrobotics.ftclib.command.Subsystem;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import java.util.function.DoubleSupplier;
+import org.firstinspires.ftc.teamcode.shoot.AutoAimController;
+import org.firstinspires.ftc.teamcode.shoot.PinpointAimTarget;
+import org.firstinspires.ftc.teamcode.shoot.ShotIntake;
+import org.firstinspires.ftc.teamcode.shoot.ShotTransit;
 import org.firstinspires.ftc.teamcode.subsystem.BlockerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
@@ -16,7 +20,8 @@ import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
  * 有序的手动控制组合命令。外层独占所有子命令的资源，私有子命令由本组合管理生命周期，
  * 不再单独提交到调度器。这样能保持 jrc 同一周期中的优先级，复位时只取消发射，不中断整个控制循环。
  *
- * 每周期：定位 → B 边沿 → 底盘 → 云台/震动 → 飞轮 → 手动挡板/送料 → 复位 → 联合送料。
+ * 每周期：定位 → 瞄准目标 → B 边沿 → 底盘 → 云台/震动 → 飞轮 → 手动挡板/送料 → 复位 → 射击辅助。
+ * 按住 B 运行移植自 Overtune 的 ShootAssistCommand（达速 + 底盘锁定后开门、短反转、持续送料）。
  * 云台与飞轮仍每周期更新；B 只接管它们的目标，不会漏掉 PID 或舵机更新。
  */
 public final class TeleopControlCommand extends CommandBase {
@@ -32,7 +37,9 @@ public final class TeleopControlCommand extends CommandBase {
     private final BlockerCommand blockerCommand;
     private final IntakeCommand intakeCommand;
     private final ResetLocalizationCommand resetCommand;
-    private final AimAndShootCommand aimCommand;
+    private final ShootAssistCommand aimCommand;
+    private final PinpointAimTarget aimTarget;
+    private final AutoAimController autoAim;
 
     private double lastTime, deltaSeconds;
     private boolean previousA, previousX, previousY, previousLeft, previousRight;
@@ -64,7 +71,10 @@ public final class TeleopControlCommand extends CommandBase {
                 () -> !releasedB && gamepad.dpad_down && !previousDown && !gamepad.dpad_up);
         intakeCommand = new IntakeCommand(intake, gamepad);
         resetCommand = new ResetLocalizationCommand(localization, turret);
-        aimCommand = new AimAndShootCommand(shooter, turret, blocker, intake, localization, time);
+        aimTarget = new PinpointAimTarget(localization);
+        autoAim = new AutoAimController();
+        aimCommand = new ShootAssistCommand(drive, shooter, new ShotIntake(intake),
+                new ShotTransit(intake, blocker), aimTarget, localization, autoAim, gamepad);
         for (Command child : new Command[] {driveCommand, turretCommand, shooterCommand,
                 blockerCommand, intakeCommand, resetCommand, aimCommand}) {
             addRequirements(child.getRequirements().toArray(new Subsystem[0]));
@@ -93,11 +103,10 @@ public final class TeleopControlCommand extends CommandBase {
         deltaSeconds = Math.max(now - lastTime, 1e-4);
         lastTime = now;
         localization.update();
+        aimTarget.update(); // 对应 OT 调度器中先于命令执行的 vision.updateAimTarget
         updateShootingEdge();
 
-        if (shooting) {
-            drive.stop();
-        } else {
+        if (!shooting) {
             driveCommand.execute();
         }
         turretCommand.execute();
@@ -163,6 +172,18 @@ public final class TeleopControlCommand extends CommandBase {
     }
 
     public String getShootingState() {
-        return aimCommand.getState();
+        return shooting ? aimCommand.getStatus() : "未启动（按住 B）";
+    }
+
+    public ShootAssistCommand getShootAssist() {
+        return aimCommand;
+    }
+
+    public PinpointAimTarget getAimTarget() {
+        return aimTarget;
+    }
+
+    public AutoAimController getAutoAim() {
+        return autoAim;
     }
 }

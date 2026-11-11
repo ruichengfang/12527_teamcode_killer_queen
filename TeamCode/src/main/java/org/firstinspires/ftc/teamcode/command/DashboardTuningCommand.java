@@ -1,24 +1,20 @@
 package org.firstinspires.ftc.teamcode.command;
 
 import com.arcrobotics.ftclib.command.CommandBase;
-import org.firstinspires.ftc.teamcode.subsystem.DashboardTuningSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.DashboardTuner;
 
-/** 每周期应用 Dashboard 的诊断目标，退出时停止电机。 */
-public final class DashboardTuningCommand extends CommandBase {
-    private final DashboardTuningSubsystem tuning;
+/** Applies live Dashboard targets to the isolated tuning hardware. */
+public class DashboardTuningCommand extends CommandBase {
+    private final DashboardTuner tuner;
 
-    public DashboardTuningCommand(DashboardTuningSubsystem tuning) {
-        this.tuning = tuning;
-        addRequirements(tuning);
+    public DashboardTuningCommand(DashboardTuner tuner) {
+        this.tuner = tuner;
+        addRequirements(tuner);
     }
 
     @Override
-    public void execute() {
-        tuning.updateOutputs();
-    }
+    public void execute() { tuner.applyTargets(); }
 
     @Override
-    public void end(boolean interrupted) {
-        tuning.stopMotors();
-    }
+    public void end(boolean interrupted) { tuner.stop(); }
 }

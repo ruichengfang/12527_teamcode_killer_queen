@@ -166,4 +166,21 @@ public class LocalizationSubsystem extends SubsystemBase {
     public double getHeadingDeg() {
         return headingDeg;
     }
+
+    /** 射击用场地位姿有效：Pinpoint 已配置、已写入起点、本周期 READY 且坐标有限。 */
+    public boolean isFieldPoseValid() {
+        return pinpointReady && positionInitialized && "READY".equals(pinpointStatus)
+                && Double.isFinite(xIn) && Double.isFinite(yIn) && Double.isFinite(headingDeg);
+    }
+
+    /** 当前 Pinpoint 场地位姿（英寸 / 度）。 */
+    public Pose2D getFieldPose() {
+        return new Pose2D(DistanceUnit.INCH, xIn, yIn, AngleUnit.DEGREES, headingDeg);
+    }
+
+    /** 对应 OT Drive.getTranslationSpeedInchesPerSecond；位姿无效时为 NaN。 */
+    public double getTranslationSpeedInchesPerSecond() {
+        return isFieldPoseValid() ? Math.hypot(
+                pinpoint.getVelX(DistanceUnit.INCH), pinpoint.getVelY(DistanceUnit.INCH)) : Double.NaN;
+    }
 }

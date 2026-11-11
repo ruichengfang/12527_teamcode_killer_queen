@@ -8,8 +8,8 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 /** 发射通道挡板。 */
 public class BlockerSubsystem extends SubsystemBase {
     // 恢复此前程序中的位置，需根据实物确认行程是否足够。
-    private static final double CLOSED_POSITION = 0.38;
-    private static final double OPEN_POSITION = 0.55;
+    public static final double CLOSED_POSITION = 0.38;
+    public static final double OPEN_POSITION = 0.55;
 
     private double testposition = CLOSED_POSITION;
 

@@ -4,7 +4,6 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import org.firstinspires.ftc.robotcore.external.navigation.*;
 import org.firstinspires.ftc.teamcode.*;
-import org.firstinspires.ftc.teamcode.tests.DashTuner;
 import com.acmerobotics.dashboard.FtcDashboard;
 import java.lang.reflect.*;
 import java.util.*;
@@ -152,39 +151,10 @@ public final class BehaviorReplay {
         op.stop();snapshot("handoffStop",op);AutoEndPose.clear();
     }
 
-    static void tuner() throws Exception {
-        DashTuner op=new DashTuner();op.hardwareMap=hardware(true);
-        DashTuner.motorName=new String[]{MOTORS[0],MOTORS[1],MOTORS[2],MOTORS[3]};
-        DashTuner.servoName=new String[]{SERVOS[0],SERVOS[1],SERVOS[2],""};
-        DashTuner.colorSensorName=new String[]{"color","","",""};
-        class Sensor implements ColorSensor,DistanceSensor {
-            public int red(){return 3;} public int green(){return 4;} public int blue(){return 5;}
-            public int alpha(){return 6;} public double getDistance(DistanceUnit unit){return 17.5;}
-        }
-        op.hardwareMap.devices.put("color",new Sensor());
-        DashTuner.isVelocityCloseLoop=new boolean[]{true,true,false,false};
-        DashTuner.isPositionCloseLoop=new boolean[]{false,false,true,false};
-        DashTuner.slaveTo=new int[]{-1,0,-1,-1};
-        DashTuner.kP=new double[]{.1,.2,.3,.4};DashTuner.kF=new double[]{.01,.02,.03,.04};
-        op.init();op.start();
-        for(int i=0;i<20;i++) {
-            DashTuner.motorTarget=new double[]{100+i,200+i,10+i,.7};
-            DashTuner.servoTarget=new double[]{.2+i*.01,.5,.8,0};
-            for(int j=0;j<4;j++) {
-                DcMotorEx m=op.hardwareMap.get(DcMotorEx.class,MOTORS[j]);
-                m.velocity=i*10+j;m.position=i+j;
-            }
-            FtcDashboard.getInstance().packets.clear();op.loop();snapshot("tuner-"+i,op);
-            System.out.println(FtcDashboard.getInstance().packets);
-        }
-        op.stop(); // Current version explicitly zeroes motors; old SDK did this outside OpMode.
-    }
-
     public static void main(String[] args) throws Exception {
         Locale.setDefault(Locale.ROOT);
         scripted(true);scripted(false);randomized(true);randomized(false);savedPoseHandoff();
         Teleop unstarted=new Teleop();unstarted.hardwareMap=hardware(true);unstarted.init();
         unstarted.stop();snapshot("stopDuringInit",unstarted);
-        tuner();
     }
 }
