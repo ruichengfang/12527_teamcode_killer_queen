@@ -2,24 +2,26 @@ package org.firstinspires.ftc.teamcode.command;
 
 import com.arcrobotics.ftclib.command.CommandBase;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import java.util.function.BooleanSupplier;
 import org.firstinspires.ftc.teamcode.shoot.ShootConstants;
 import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
 
-/** LT 或 RT（射击）：intake + transit 全速；单独按住 LB 优先联动反转退球。 */
+/** RT 射击时等待挡板打开再启动 transit；LT 吸入和 LB 退球独立控制。 */
 public final class IntakeCommand extends CommandBase {
     private final IntakeSubsystem intake;
     private final Gamepad gamepad;
+    private final BooleanSupplier blockerOpen;
 
-    public IntakeCommand(IntakeSubsystem intake, Gamepad gamepad) {
+    public IntakeCommand(IntakeSubsystem intake, Gamepad gamepad, BooleanSupplier blockerOpen) {
         this.intake = intake;
         this.gamepad = gamepad;
+        this.blockerOpen = blockerOpen;
         addRequirements(intake);
     }
 
     @Override
     public void execute() {
         boolean intakeRequested = gamepad.left_trigger > ShootConstants.TRIGGER_THRESHOLD;
-        // 2026-11-12：射击（按住 RT）时改为 transitMotor 全速送料，intake 不再随 RT 转。
         boolean shootRequested = gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD;
         double intakePower = 0.0;
         double transitPower = 0.0;
@@ -30,15 +32,14 @@ public final class IntakeCommand extends CommandBase {
         } else if (gamepad.dpad_down) {
             intakePower = ShootConstants.INTAKE_JAM_POWER;
         } else {
-            // 2026-11-12：LT 吸球时 intake 与 transit 都满功率；RT 射击时 transit 满功率。
             if (intakeRequested) {
                 intakePower = ShootConstants.INTAKE_ACTIVE_POWER;
                 transitPower = ShootConstants.TRANSIT_FEED_POWER;
             }
-            // 2026-11-12：RT 准备射击时 intake 也满功率转。
             if (shootRequested) {
                 intakePower = ShootConstants.INTAKE_ACTIVE_POWER;
-                transitPower = org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem.SHOT_TRANSIT_POWER; // 射击时 0.8
+                transitPower = blockerOpen.getAsBoolean()
+                        ? org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem.SHOT_TRANSIT_POWER : 0.0;
             }
         }
         intake.setPowers(intakePower, transitPower);

@@ -14,8 +14,8 @@ import org.firstinspires.ftc.teamcode.tuning.FlywheelTuning;
 /** 双电机飞轮，共用自动整定器的 PID + kS + kV 控制器。 */
 @Config
 public class ShooterSubsystem extends SubsystemBase {
-    /** 飞轮目标：shooterMotor1 编码器 1600 ticks/s（28 ticks/rev ≈ 3429 RPM）。2026-11-12 由 2000 改为 1600。 */
-    public static final double SHOT_TICKS_PER_SECOND = 1600.0;
+    /** 所有射击档位共用的飞轮目标速度，可在 Dashboard 调整。 */
+    public static double SHOT_TICKS_PER_SECOND = 1580.0;
     public static final double SINGLE_BALL_RPM = SHOT_TICKS_PER_SECOND * 60.0 / 28.0;
 
     // 达速判定照抄 OT ShooterConstants：按目标的比例，不含自瞄条件。
@@ -45,20 +45,15 @@ public class ShooterSubsystem extends SubsystemBase {
     public static double SERVO_LOW = 0.91;
     public static double SERVO_POSITION = SERVO_LOW;
 
-    // 2026-11-12 三档射击（Solo：只按 RT = 远射，RB+RT = 中射，LB+RT = 近射）：
-    //   远射：shooterServo 0.91（SERVO_LOW），1500 TPS
-    //   中射：shooterServo 与近射相同（SERVO_HIGH 0.87），1500 TPS
-    //   近射：shooterServo 0.87（SERVO_HIGH），1280 TPS
-    public static double FAR_TICKS_PER_SECOND = 1580.0; // 2026-11-12 由 1500 上调
-    public static double MID_TICKS_PER_SECOND = 1500.0; // 2026-11-12 15:30 由 1470 改
     /** 射击时（手动 RT / 自动射击）transit 功率；LT 吸球仍为满功率。 */
     public static double SHOT_TRANSIT_POWER = 0.8;
-    public static double NEAR_TICKS_PER_SECOND = 1280.0;
+    /** 挡板下达打开指令后留给舵机运动的时间，需实车调整。 */
+    public static double TRANSIT_DELAY_SECONDS = 0.2;
 
     public enum ShotMode { FAR, MID, NEAR }
     private ShotMode shotMode = ShotMode.FAR;
 
-    /** 选档：同时设 shooterServo 位置和目标转速（RT 按住时立即改追新转速）。 */
+    /** 选档只改变 shooterServo 位置，飞轮使用统一转速。 */
     public void setShotMode(ShotMode mode) {
         shotMode = mode;
         setServoPosition(mode == ShotMode.NEAR ? SERVO_HIGH : mode == ShotMode.MID ? SERVO_HIGH : SERVO_LOW);
@@ -75,8 +70,7 @@ public class ShooterSubsystem extends SubsystemBase {
 
     /** 当前档位的目标转速。 */
     public double getShotTicksPerSecond() {
-        return shotMode == ShotMode.NEAR ? NEAR_TICKS_PER_SECOND
-                : shotMode == ShotMode.MID ? MID_TICKS_PER_SECOND : FAR_TICKS_PER_SECOND;
+        return SHOT_TICKS_PER_SECOND;
     }
 
     public double getShotRpm() {
@@ -149,7 +143,7 @@ public class ShooterSubsystem extends SubsystemBase {
 
     /**
      * OT Shooter.setDistanceTarget：距离无效则停机并返回 false。KQ 没有距离-转速表，
-     * 有效距离一律使用 SINGLE_BALL_RPM。
+     * 有效距离一律使用统一射击转速。
      */
     public boolean setDistanceTarget(double distanceCm) {
         if (!Double.isFinite(distanceCm) || distanceCm < 0.0) {

@@ -4,6 +4,7 @@ import com.arcrobotics.ftclib.command.Command;
 import com.arcrobotics.ftclib.command.CommandBase;
 import com.arcrobotics.ftclib.command.Subsystem;
 import com.qualcomm.robotcore.hardware.Gamepad;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import java.util.function.DoubleSupplier;
 import org.firstinspires.ftc.teamcode.shoot.AutoAimController;
 import org.firstinspires.ftc.teamcode.shoot.PinpointAimTarget;
@@ -15,7 +16,7 @@ import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
-/** 双摇杆驾驶、B 底盘自瞄、RT 飞轮（达速后开挡板）、LT 吸入、RT 时 transit 送料、LB 退球。 */
+/** 双摇杆驾驶、B 底盘自瞄、飞轮常转、RT 达速开挡板并送料。 */
 public final class TeleopControlCommand extends CommandBase {
     private final Gamepad gamepad;
     private final DoubleSupplier time;
@@ -29,6 +30,7 @@ public final class TeleopControlCommand extends CommandBase {
     private final ChassisAimCommand aimCommand;
     private final PinpointAimTarget aimTarget;
     private final AutoAimController autoAim;
+    private final ElapsedTime blockerOpenTimer = new ElapsedTime();
 
     private double lastTime, deltaSeconds;
     private boolean previousB;
@@ -49,9 +51,9 @@ public final class TeleopControlCommand extends CommandBase {
         driveCommand = new DriveCommand(drive, localization,
                 () -> -gamepad.left_stick_y, () -> gamepad.left_stick_x,
                 () -> gamepad.right_stick_x);
-        shooterCommand = new ShooterCommand(shooter,
-                () -> gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD, () -> deltaSeconds);
-        intakeCommand = new IntakeCommand(intake, gamepad);
+        shooterCommand = new ShooterCommand(shooter, () -> true, () -> deltaSeconds);
+        intakeCommand = new IntakeCommand(intake, gamepad, () -> blocker.isOpen()
+                && blockerOpenTimer.seconds() >= ShooterSubsystem.TRANSIT_DELAY_SECONDS);
         aimTarget = new PinpointAimTarget(localization);
         autoAim = new AutoAimController();
         aimCommand = new ChassisAimCommand(drive, localization, aimTarget, autoAim, gamepad);
@@ -71,6 +73,7 @@ public final class TeleopControlCommand extends CommandBase {
         localization.update();
         localization.resetDriverHeading(); // OT: drive.resetDriverHeading() at START
         blocker.setOpen(false);
+        shooter.start();
         driveCommand.initialize();
         shooterCommand.initialize();
         intakeCommand.initialize();
@@ -117,6 +120,7 @@ public final class TeleopControlCommand extends CommandBase {
             if (blocker.isOpen()) blocker.setOpen(false);
         } else if (!blocker.isOpen() && shooter.isReady()) {
             blocker.setOpen(true);
+            blockerOpenTimer.reset();
         }
     }
 

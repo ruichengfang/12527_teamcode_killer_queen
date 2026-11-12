@@ -67,13 +67,10 @@ public class Teleop extends OpMode {
     private void addControlHelp() {
         telemetry.addLine("左摇杆无头平移（START 时车头为前方，按下左摇杆重设），右摇杆转向");
         telemetry.addLine("按住 B 用 Pinpoint 控制转向，左摇杆仍可平移");
-        telemetry.addLine("按住 RT 转飞轮，intake + transit 全速");
-        telemetry.addData("只按 RT 远射", "servo %.2f / %.0f TPS",
-                ShooterSubsystem.SERVO_LOW, ShooterSubsystem.FAR_TICKS_PER_SECOND);
-        telemetry.addData("RB + RT 中射", "servo %.2f / %.0f TPS",
-                ShooterSubsystem.SERVO_HIGH, ShooterSubsystem.MID_TICKS_PER_SECOND);
-        telemetry.addData("LB + RT 近射", "servo %.2f / %.0f TPS",
-                ShooterSubsystem.SERVO_HIGH, ShooterSubsystem.NEAR_TICKS_PER_SECOND);
+        telemetry.addLine("START 后飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
+        telemetry.addData("统一飞轮转速", "%.0f TPS", ShooterSubsystem.SHOT_TICKS_PER_SECOND);
+        telemetry.addData("只按 RT 远射角度", "servo %.2f", ShooterSubsystem.SERVO_LOW);
+        telemetry.addData("RB + RT 中射 / LB + RT 近射角度", "servo %.2f", ShooterSubsystem.SERVO_HIGH);
         telemetry.addLine("按住 LT 全速吸入");
         telemetry.addLine("单独按住 LB：intake + transit 全速退球，优先于吸入");
         telemetry.addLine("按住方向键下：仅 intake 全速吐球");
@@ -131,7 +128,7 @@ public class Teleop extends OpMode {
                 shooter.getShotModeName(), shooter.getServoPosition(),
                 shooter.getShotTicksPerSecond());
         if (!shooter.getControlFault().isEmpty()) telemetry.addData("飞轮控制故障", shooter.getControlFault());
-        telemetry.addData("Shooter 状态", shooter.isRunning() ? "开（松 RT 停止）" : "关（按住 RT 启动）");
+        telemetry.addData("Shooter 状态", shooter.isRunning() ? "开（START 后常转）" : "关");
 
         telemetry.addData("Intake 功率", "%.2f", intake.getIntakePower());
         telemetry.addData("Transit 功率", "%.2f", intake.getTransitPower());

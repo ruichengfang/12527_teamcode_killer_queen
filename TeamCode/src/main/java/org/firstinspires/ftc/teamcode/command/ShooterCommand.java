@@ -5,7 +5,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
 
-/** 扳机按住时运行飞轮，并每周期更新转速闭环。 */
+/** 按给定条件运行飞轮，并每周期更新转速闭环。 */
 public final class ShooterCommand extends CommandBase {
     private final ShooterSubsystem shooter;
     private final BooleanSupplier triggerHeld;
