@@ -20,10 +20,10 @@ public class ShooterSubsystem extends SubsystemBase {
 
     // 达速判定照抄 OT ShooterConstants：按目标的比例，不含自瞄条件。
     // 进入 ±2%（2000 TPS 时 ±40 TPS），已达速后放宽到 ±2.5%（±50 TPS）才算掉速；
-    // 进入范围后需连续 0.05 s 才算达速。旧值：固定 ±200 / ±250 RPM。
+    // 进入范围后需连续 0.02 s 才算达速。旧值：固定 ±200 / ±250 RPM。
     public static double READY_ENTER_TOLERANCE = 0.02;
     public static double READY_EXIT_TOLERANCE = 0.025;
-    public static double READY_STABLE_SECONDS = 0.05;
+    public static double READY_STABLE_SECONDS = 0.02;
     /** OT 默认 30 ticks/s，按 28 ticks/rev 换算为 RPM。 */
     public static final double TARGET_CHANGE_RESET_RPM = 30.0 * 60.0 / 28.0;
 

@@ -13,6 +13,10 @@ all_stubs = runpy.run_path(str(ROOT / 'local-tests/run_replay.py'))['STUBS']
 needed = (
     'com/qualcomm/robotcore/hardware/HardwareMap.java',
     'com/qualcomm/robotcore/hardware/IMU.java',
+    'com/qualcomm/robotcore/hardware/DcMotorSimple.java',
+    'com/qualcomm/robotcore/hardware/DcMotor.java',
+    'com/qualcomm/robotcore/hardware/DcMotorEx.java',
+    'com/qualcomm/robotcore/hardware/PIDFCoefficients.java',
     'com/qualcomm/hardware/rev/RevHubOrientationOnRobot.java',
     'com/qualcomm/hardware/gobilda/GoBildaPinpointDriver.java',
     'org/firstinspires/ftc/robotcore/external/navigation/AngleUnit.java',
@@ -25,17 +29,23 @@ stubs['com/arcrobotics/ftclib/command/SubsystemBase.java'] = (
 pinpoint = 'com/qualcomm/hardware/gobilda/GoBildaPinpointDriver.java'
 stubs[pinpoint] = (stubs[pinpoint]
     .replace('FAULT_NO_PODS_DETECTED}', 'FAULT_NO_PODS_DETECTED,FAULT_BAD_READ}')
+    .replace('public int resets; public double ox,oy;', 'public int resets, writes, configs; public double ox,oy;')
+    .replace('{ox=x;oy=y;}', '{configs++;ox=x;oy=y;}')
+    .replace('setEncoderResolution(GoBildaOdometryPods p){}', 'setEncoderResolution(GoBildaOdometryPods p){configs++;}')
+    .replace('setEncoderDirections(EncoderDirection x,EncoderDirection y){}', 'setEncoderDirections(EncoderDirection x,EncoderDirection y){configs++;}')
     .replace('public void resetPosAndIMU(){resets++;} public void update(){}',
              'public boolean failAfterSet, armed; public void resetPosAndIMU(){resets++;} '
              'public void update(){if(armed){status=DeviceStatus.FAULT_BAD_READ;armed=false;}}')
     .replace('public void setPosition(Pose2D p){pose=p;}',
-             'public void setPosition(Pose2D p){pose=p;if(failAfterSet){armed=true;failAfterSet=false;}}'))
+             'public void setPosition(Pose2D p){writes++;pose=p;if(failAfterSet){armed=true;failAfterSet=false;}}'))
 stubs['PinpointResetCheck.java'] = '''
 import com.qualcomm.robotcore.hardware.*;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import org.firstinspires.ftc.robotcore.external.navigation.*;
 import org.firstinspires.ftc.teamcode.*;
 import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
 import org.firstinspires.ftc.teamcode.command.PinpointTrimButtons;
 public class PinpointResetCheck {
   static void check(boolean ok, String label) { if(!ok) throw new AssertionError(label); }
@@ -44,9 +54,25 @@ public class PinpointResetCheck {
     HardwareMap hw=new HardwareMap();
     IMU imu=new IMU(); GoBildaPinpointDriver od=new GoBildaPinpointDriver();
     hw.devices.put(NameConstants.IMU,imu); hw.devices.put(NameConstants.PINPOINT,od);
+    od.pose=new Pose2D(DistanceUnit.INCH,32,44,AngleUnit.DEGREES,135);
+    od.status=GoBildaPinpointDriver.DeviceStatus.CALIBRATING;
+    AutoEndPose.save(1,2,0);
     LocalizationSubsystem loc=new LocalizationSubsystem(hw);
+    check(od.resets==0 && od.configs==0 && od.writes==0,"Solo INIT must not initialize or write Pinpoint");
+    check(RevHubOrientationOnRobot.lastLogo == RevHubOrientationOnRobot.LogoFacingDirection.RIGHT
+        && RevHubOrientationOnRobot.lastUsb == RevHubOrientationOnRobot.UsbFacingDirection.UP,
+        "IMU logo right, USB up");
     loc.update();
+    check(!loc.isPositionInitialized(),"wait for ready before accepting inherited pose");
+    od.status=GoBildaPinpointDriver.DeviceStatus.READY;
+    loc.update();
+    near(loc.getXIn(),32,"inherit current device x, not saved auto pose");
+    near(loc.getYIn(),44,"inherit current device y");
+    near(loc.getHeadingDeg(),135,"inherit current device heading");
+    check(loc.isFieldPoseValid() && od.writes==0 && od.resets==0,"inherit without writes or reset");
+    loc.resetDriverHeading();
     od.pose=new Pose2D(DistanceUnit.INCH,10,20,AngleUnit.DEGREES,30);
+    imu.yaw=30;
     loc.update();
     near(Math.toDegrees(loc.getManualDriveHeadingRadians()),30,"initial driver heading");
     od.failAfterSet=true;
@@ -78,12 +104,41 @@ public class PinpointResetCheck {
     buttons.update(true,true,true,true);
     check(buttons.getXDirection()==0 && buttons.getYDirection()==0,"opposite edges cancel");
     od.status=GoBildaPinpointDriver.DeviceStatus.FAULT_BAD_READ; loc.update();
+    near(Math.toDegrees(loc.getManualDriveHeadingRadians()),30,"Pinpoint fault does not alter IMU driving");
     check(!loc.adjustFieldPosition(1,0),"reject trim without valid pose");
     od.status=GoBildaPinpointDriver.DeviceStatus.READY; loc.update();
     near(loc.getXIn(),72,"invalid trim did not change x");
+    imu.yaw=Double.NaN; loc.resetDriverHeading();
+    check(Double.isNaN(loc.getManualDriveHeadingRadians()),"invalid IMU is not a valid heading");
+    imu.yaw=30;
+    near(Math.toDegrees(loc.getManualDriveHeadingRadians()),30,"invalid reset preserves reference");
+    loc.resetDriverHeading();
+    near(Math.toDegrees(loc.getManualDriveHeadingRadians()),0,"driver resets IMU forward");
+    imu.yaw=120;
+    near(Math.toDegrees(loc.getManualDriveHeadingRadians()),90,"IMU rotation drives heading");
+    for(String name:new String[]{NameConstants.FRONT_LEFT,NameConstants.FRONT_RIGHT,
+        NameConstants.BACK_LEFT,NameConstants.BACK_RIGHT}) hw.devices.put(name,new DcMotorEx());
+    DriveSubsystem drive=new DriveSubsystem(hw);
+    drive.moveFieldCentric(1,0,0,loc.getManualDriveHeadingRadians());
+    near(drive.getFrontLeftPower(),1,"90 degree heading turns forward into strafe");
+    near(drive.getFrontRightPower(),-1,"90 degree heading opposite right wheel");
+    drive.moveFieldCentric(1,0,0,Double.NaN);
+    near(drive.getFrontLeftPower(),0,"invalid heading stops left wheel");
+    near(drive.getFrontRightPower(),0,"invalid heading stops right wheel");
     HardwareMap missing=new HardwareMap(); missing.devices.put(NameConstants.IMU,new IMU());
-    check(!new LocalizationSubsystem(missing).resetToFieldCenter(),"missing Pinpoint rejected");
-    System.out.println("PASS: Pinpoint reset, trim buttons, invalid pose and driver heading");
+    LocalizationSubsystem noOd=new LocalizationSubsystem(missing);
+    noOd.resetDriverHeading(); missing.get(IMU.class,NameConstants.IMU).yaw=45;
+    near(Math.toDegrees(noOd.getManualDriveHeadingRadians()),45,"IMU driving without Pinpoint");
+    check(!noOd.resetToFieldCenter(),"missing Pinpoint rejected");
+    HardwareMap autoHw=new HardwareMap(); GoBildaPinpointDriver autoOd=new GoBildaPinpointDriver();
+    autoHw.devices.put(NameConstants.IMU,new IMU()); autoHw.devices.put(NameConstants.PINPOINT,autoOd);
+    LocalizationSubsystem autoLoc=new LocalizationSubsystem(autoHw,1,2,Math.toRadians(90));
+    check(autoOd.resets==1 && autoOd.configs==3,"explicit auto initialization retained");
+    autoLoc.update();
+    near(autoLoc.getXIn(),1,"explicit auto x"); near(autoLoc.getYIn(),2,"explicit auto y");
+    near(autoLoc.getHeadingDeg(),90,"explicit auto heading");
+    check(autoOd.writes==1,"explicit auto writes its pose");
+    System.out.println("PASS: IMU driving, Pinpoint faults, reset, trim and invalid heading stop");
   }
 }'''
 with tempfile.TemporaryDirectory(prefix='pinpoint-reset-') as temp:
@@ -93,6 +148,7 @@ with tempfile.TemporaryDirectory(prefix='pinpoint-reset-') as temp:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding='utf-8')
     for name in ('NameConstants.java', 'AutoEndPose.java', 'subsystem/LocalizationSubsystem.java',
+                 'subsystem/DriveSubsystem.java',
                  'command/PinpointTrimButtons.java'):
         target = root / 'org/firstinspires/ftc/teamcode' / name
         target.parent.mkdir(parents=True, exist_ok=True)

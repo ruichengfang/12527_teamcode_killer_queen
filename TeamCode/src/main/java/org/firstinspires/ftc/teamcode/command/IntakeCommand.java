@@ -6,11 +6,13 @@ import java.util.function.BooleanSupplier;
 import org.firstinspires.ftc.teamcode.shoot.ShootConstants;
 import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
 
-/** RT 射击时等待挡板打开再启动 transit；LT 吸入和 LB 退球独立控制。 */
+/** LT 切换吸入；RT 按住射击，LB 按住退球。 */
 public final class IntakeCommand extends CommandBase {
     private final IntakeSubsystem intake;
     private final Gamepad gamepad;
     private final BooleanSupplier blockerOpen;
+    private boolean intakeEnabled;
+    private boolean previousLeftTrigger;
 
     public IntakeCommand(IntakeSubsystem intake, Gamepad gamepad, BooleanSupplier blockerOpen) {
         this.intake = intake;
@@ -20,8 +22,16 @@ public final class IntakeCommand extends CommandBase {
     }
 
     @Override
+    public void initialize() {
+        intakeEnabled = false;
+        previousLeftTrigger = gamepad.left_trigger > ShootConstants.TRIGGER_THRESHOLD;
+    }
+
+    @Override
     public void execute() {
-        boolean intakeRequested = gamepad.left_trigger > ShootConstants.TRIGGER_THRESHOLD;
+        boolean leftTrigger = gamepad.left_trigger > ShootConstants.TRIGGER_THRESHOLD;
+        if (leftTrigger && !previousLeftTrigger) intakeEnabled = !intakeEnabled;
+        previousLeftTrigger = leftTrigger;
         boolean shootRequested = gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD;
         double intakePower = 0.0;
         double transitPower = 0.0;
@@ -32,7 +42,7 @@ public final class IntakeCommand extends CommandBase {
         } else if (gamepad.dpad_down) {
             intakePower = ShootConstants.INTAKE_JAM_POWER;
         } else {
-            if (intakeRequested) {
+            if (intakeEnabled) {
                 intakePower = ShootConstants.INTAKE_ACTIVE_POWER;
                 transitPower = ShootConstants.TRANSIT_FEED_POWER;
             }
@@ -47,6 +57,9 @@ public final class IntakeCommand extends CommandBase {
 
     @Override
     public void end(boolean interrupted) {
+        intakeEnabled = false;
         intake.stop();
     }
+
+    public boolean isIntakeEnabled() { return intakeEnabled; }
 }

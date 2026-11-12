@@ -48,7 +48,7 @@ public class AutoMidShot extends LinearOpMode {
     private final Pose point2 = poseFactory.of(23.3669, 21.5333, 270);
     private final Pose point3 = poseFactory.of(23.8706, 107.6622, 270);
     private final Pose point407path7Start = poseFactory.of(23.8706, 107.6622, 0);
-    private final Pose point407path7 = poseFactory.of(8.6715, 107.8308, 0);
+    private final Pose point407path7 = poseFactory.of(12.6715, 107.8308, 0);
 
     private Command midShot() {
         return new AutoSoloShotCommand(drive, shooter, intake, blocker, ShooterSubsystem.ShotMode.MID);

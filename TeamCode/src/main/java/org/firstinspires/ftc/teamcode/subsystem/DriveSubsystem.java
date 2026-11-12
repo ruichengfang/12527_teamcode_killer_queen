@@ -39,7 +39,7 @@ public class DriveSubsystem extends SubsystemBase {
 
     /**
      * OT Drive.moveFieldCentric（逻辑照抄，电机方向仍用 KQ 自己的）。
-     * driverHeadingRadians 为 NaN 时退回车头坐标驾驶；输入非有限值时停车。
+     * IMU 航向或输入无效时停车，避免驾驶方向突然切换。
      */
     public void moveFieldCentric(double forward, double strafe, double turn, double driverHeadingRadians) {
         if (!Double.isFinite(forward) || !Double.isFinite(strafe) || !Double.isFinite(turn)) {
@@ -48,7 +48,7 @@ public class DriveSubsystem extends SubsystemBase {
         }
         double heading = driverHeadingRadians;
         if (!Double.isFinite(heading)) {
-            moveRobot(forward, strafe, turn);
+            stop();
             return;
         }
         // Field heading is CCW-positive; joystick strafe is right-positive.

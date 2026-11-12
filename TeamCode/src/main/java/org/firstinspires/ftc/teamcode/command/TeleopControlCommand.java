@@ -40,6 +40,8 @@ public final class TeleopControlCommand extends CommandBase {
 
     private double lastTime, deltaSeconds;
     private boolean previousB;
+    private boolean previousX;
+    private boolean turretCentered;
     private boolean previousLeftStickButton;
     private boolean previousOptions;
     private boolean previousLeftBumper;
@@ -75,6 +77,8 @@ public final class TeleopControlCommand extends CommandBase {
     public void initialize() {
         lastTime = time.getAsDouble();
         previousB = gamepad.b;
+        previousX = gamepad.x;
+        turretCentered = false;
         previousLeftStickButton = gamepad.left_stick_button;
         previousOptions = gamepad.options;
         trimButtons.update(operatorGamepad.dpad_up, operatorGamepad.dpad_down,
@@ -113,7 +117,12 @@ public final class TeleopControlCommand extends CommandBase {
             trimStatus = !accepted ? "未调整：定位无效" : localization.isFieldPoseValid()
                     ? "已调整" : "等待 Pinpoint 恢复";
         }
-        if (!turret.isAimMode() && localization.isFieldPoseValid()) {
+        if (gamepad.x && !previousX) {
+            turretCentered = !turretCentered;
+            if (turretCentered) turret.setAimMode(false, false);
+        }
+        previousX = gamepad.x;
+        if (!turretCentered && !turret.isAimMode() && localization.isFieldPoseValid()) {
             turret.setAimMode(true, true);
         }
         turret.update(localization);
@@ -154,6 +163,10 @@ public final class TeleopControlCommand extends CommandBase {
     public boolean isTurretAimed() {
         return turretFeedback.isAimed();
     }
+
+    public boolean isTurretCentered() { return turretCentered; }
+
+    public boolean isIntakeEnabled() { return intakeCommand.isIntakeEnabled(); }
 
     public String getTrimStatus() { return trimStatus; }
 

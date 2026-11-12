@@ -98,8 +98,9 @@ public class IMU {
 'com/qualcomm/hardware/rev/RevHubOrientationOnRobot.java': '''
 package com.qualcomm.hardware.rev;
 public class RevHubOrientationOnRobot {
- public enum LogoFacingDirection {RIGHT} public enum UsbFacingDirection {UP}
- public RevHubOrientationOnRobot(LogoFacingDirection l,UsbFacingDirection u){}
+ public enum LogoFacingDirection {LEFT,RIGHT} public enum UsbFacingDirection {UP}
+ public static LogoFacingDirection lastLogo; public static UsbFacingDirection lastUsb;
+ public RevHubOrientationOnRobot(LogoFacingDirection l,UsbFacingDirection u){lastLogo=l;lastUsb=u;}
 }''',
 'org/firstinspires/ftc/robotcore/external/navigation/AngleUnit.java': '''
 package org.firstinspires.ftc.robotcore.external.navigation;

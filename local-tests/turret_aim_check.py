@@ -54,6 +54,14 @@ STUBS = {
             loc.yaw = -175; turret.update(loc);
             near(turret.getCommandedRelativeDegrees(), 40, "tracking");
             check(turret.hasValidAim() && turret.isReachable(), "reachable target");
+            check(turret.setAimMode(false, false), "disable aim for center lock");
+            turret.update(loc);
+            near(turret.getPosition(), TurretSubsystem.INIT_POSITION, "center lock position");
+            loc.yaw = -170; turret.update(loc);
+            near(turret.getPosition(), TurretSubsystem.INIT_POSITION, "center lock follows chassis");
+            check(turret.setAimMode(true, true), "resume aim");
+            turret.update(loc);
+            near(turret.getCommandedRelativeDegrees(), 35, "tracking resumes");
             loc.yaw = -210; turret.update(loc);
             near(turret.getCommandedRelativeDegrees(), 60, "positive limit");
             check(!turret.isReachable(), "positive unreachable");

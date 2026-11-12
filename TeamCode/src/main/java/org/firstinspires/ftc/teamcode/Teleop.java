@@ -43,21 +43,17 @@ public class Teleop extends OpMode {
 
     @Override
     public void init_loop() {
-        // INIT 可以复位 Pinpoint；READY 后才恢复自动末位置，并在写入后重新读取。
+        // 直接读取 Pinpoint 当前位姿，自动到手动切换时不重置设备。
         localization.update();
 
-        telemetry.addData("初始坐标来源", AutoEndPose.hasValue() ? "自动末位置" : "手动默认起点");
+        telemetry.addData("初始坐标来源", "Pinpoint 当前位姿");
         telemetry.addData("Pinpoint 状态", localization.getPinpointStatus());
-        telemetry.addData("初始坐标已写入", localization.isPositionInitialized());
-        if (localization.isPositionInitialized()) {
+        telemetry.addData("当前坐标有效", localization.isFieldPoseValid());
+        if (localization.isFieldPoseValid()) {
             telemetry.addData("当前 X/Y (in)", "(%.2f, %.2f)",
                     localization.getXIn(), localization.getYIn());
             telemetry.addData("当前 Heading (°)", "%.1f", localization.getHeadingDeg());
-        } else if (AutoEndPose.hasValue()) {
-            telemetry.addData("待恢复 X/Y (in)", "(%.2f, %.2f)",
-                    AutoEndPose.getXIn(), AutoEndPose.getYIn());
-            telemetry.addData("待恢复 Heading (°)", "%.1f",
-                    Math.toDegrees(AutoEndPose.getHeadingRad()));
+        } else {
             telemetry.addLine("等待 Pinpoint READY，尚未读取有效坐标");
         }
         telemetry.update();
@@ -65,15 +61,16 @@ public class Teleop extends OpMode {
 
     /** 主操负责驾驶机构，副操方向键微调 Pinpoint 坐标。 */
     private void addControlHelp() {
-        telemetry.addLine("左摇杆无头平移（START 时车头为前方，按下左摇杆重设），右摇杆转向");
+        telemetry.addLine("内置 IMU 无头平移（START 时车头为前方，按下左摇杆重设），右摇杆转向");
         telemetry.addLine("按 Option 将 Pinpoint 坐标设为 (72, 72 in, 180°)");
         telemetry.addLine("副操方向键：上/下 X ±1 in，右/左 Y ±1 in（每按一次）");
         telemetry.addLine("按住 B 用 Pinpoint 控制转向，左摇杆仍可平移");
+        telemetry.addLine("主操 X：切换云台中位锁定 / 自动瞄准");
         telemetry.addLine("START 后飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
         telemetry.addData("统一飞轮转速", "%.0f TPS", ShooterSubsystem.SHOT_TICKS_PER_SECOND);
         telemetry.addData("只按 RT 远射角度", "servo %.2f", ShooterSubsystem.SERVO_LOW);
         telemetry.addData("RB + RT 中射 / LB + RT 近射角度", "servo %.2f", ShooterSubsystem.SERVO_HIGH);
-        telemetry.addLine("按住 LT 全速吸入");
+        telemetry.addLine("LT 按一次开启吸入，再按一次关闭");
         telemetry.addLine("单独按住 LB：intake + transit 全速退球，优先于吸入");
         telemetry.addLine("按住方向键下：仅 intake 全速吐球");
         telemetry.addLine("按住 RT 飞轮达速后自动开挡板，松开 RT 关闭；云台常态自瞄");
@@ -96,8 +93,8 @@ public class Teleop extends OpMode {
         double driverHeading = localization.getManualDriveHeadingRadians();
         telemetry.addData("底盘锁定", controls.getDriveCommand().isHolding() ? "电机刹车锁死" : "否");
         telemetry.addData("底盘模式", Double.isFinite(driverHeading)
-                ? String.format(java.util.Locale.US, "无头（相对前方 %.1f°）", Math.toDegrees(driverHeading))
-                : "车头坐标（Pinpoint 不可用）");
+                ? String.format(java.util.Locale.US, "IMU 无头（相对前方 %.1f°）", Math.toDegrees(driverHeading))
+                : "IMU 航向无效，底盘停止");
         telemetry.addData("底盘 FL/BL/FR/BR", "%.2f / %.2f / %.2f / %.2f",
                 drive.getFrontLeftPower(), drive.getBackLeftPower(),
                 drive.getFrontRightPower(), drive.getBackRightPower());
@@ -113,7 +110,9 @@ public class Teleop extends OpMode {
         }
 
         telemetry.addData("云台位置", "%.3f", turret.getPosition());
-        telemetry.addData("云台目标", !localization.isFieldPoseValid() ? "等待有效定位"
+        telemetry.addData("云台模式", controls.isTurretCentered() ? "锁定中位" : "自动瞄准");
+        telemetry.addData("云台目标", controls.isTurretCentered() ? "中位锁定"
+                : !localization.isFieldPoseValid() ? "等待有效定位"
                 : !turret.hasValidAim() ? "无有效目标" : turret.isReachable() ? "在限位内" : "超出限位");
         telemetry.addData("云台估计瞄准", controls.isTurretAimed() ? "是（无位置反馈）" : "否");
         telemetry.addData("挡板", "%s (%.2f)", blocker.isOpen() ? "开" : "关", blocker.getPosition());
@@ -138,6 +137,7 @@ public class Teleop extends OpMode {
 
         telemetry.addData("Intake 功率", "%.2f", intake.getIntakePower());
         telemetry.addData("Transit 功率", "%.2f", intake.getTransitPower());
+        telemetry.addData("吸入开关", controls.isIntakeEnabled() ? "开" : "关");
 
         telemetry.update();
     }

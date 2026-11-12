@@ -9,7 +9,6 @@ import com.qualcomm.robotcore.hardware.IMU;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-import org.firstinspires.ftc.teamcode.AutoEndPose;
 import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 集中管理 Control Hub IMU 与 GoBilda Pinpoint 定位。 */
@@ -30,41 +29,39 @@ public class LocalizationSubsystem extends SubsystemBase {
     private GoBildaPinpointDriver pinpoint;
 
     private boolean pinpointReady;
-    private boolean needSetStartPosition = true;
+    private boolean needSetStartPosition;
     private boolean positionInitialized;
     private double pendingXIn;
     private double pendingYIn;
     private double pendingHeadingRad;
-    private double pendingPreviousHeadingRad = Double.NaN;
     private String pinpointStatus = "N/A";
     private double xIn;
     private double yIn;
     private double headingDeg;
 
-    /** 手动使用：有自动记录则恢复自动末位置，否则使用默认起点。 */
-    // ---- OT Drive 无头驾驶参考（移植自 Overtune Drive.java，逻辑不变）----
-    /** OT DRIVER_HEADING_HOLD_NANOS：Pinpoint 短暂坏读时沿用上一帧有效角度的时长。 */
-    private static final long DRIVER_HEADING_HOLD_NANOS = 100_000_000L;
+    // 无头驾驶独立使用 Control Hub IMU，不依赖 Pinpoint 场地位姿。
     private double driverHeadingReferenceRadians = Double.NaN;
-    private boolean periodicBadRead;
-    private double lastValidDriverHeadingRadians = Double.NaN;
-    private long lastValidDriverHeadingNanos;
 
     public LocalizationSubsystem(HardwareMap hardwareMap) {
-        this(hardwareMap,
-                AutoEndPose.hasValue() ? AutoEndPose.getXIn() : START_X_IN,
-                AutoEndPose.hasValue() ? AutoEndPose.getYIn() : START_Y_IN,
-                AutoEndPose.hasValue() ? AutoEndPose.getHeadingRad() : Math.toRadians(START_HEADING_DEG));
+        this(hardwareMap, START_X_IN, START_Y_IN, Math.toRadians(START_HEADING_DEG), false);
     }
 
     /** 自动使用：明确指定自己的起点，不读取此前保存的自动末位置。 */
     public LocalizationSubsystem(HardwareMap hardwareMap, double initialXIn,
                                  double initialYIn, double initialHeadingRad) {
+        this(hardwareMap, initialXIn, initialYIn, initialHeadingRad, true);
+    }
+
+    /** Solo 保留设备已有位姿；指定起点的自动模式仍初始化 Pinpoint。 */
+    private LocalizationSubsystem(HardwareMap hardwareMap, double initialXIn,
+                                  double initialYIn, double initialHeadingRad, boolean initializePinpoint) {
         pendingXIn = initialXIn;
         pendingYIn = initialYIn;
         pendingHeadingRad = initialHeadingRad;
+        needSetStartPosition = initializePinpoint;
 
         imu = hardwareMap.get(IMU.class, NameConstants.IMU);
+        // Control Hub 安装在车右侧，Logo 朝右（车外），USB-C 接口朝上。
         RevHubOrientationOnRobot orientation = new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
                 RevHubOrientationOnRobot.UsbFacingDirection.UP);
@@ -73,12 +70,14 @@ public class LocalizationSubsystem extends SubsystemBase {
 
         try {
             pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, NameConstants.PINPOINT);
-            pinpoint.setEncoderResolution(
-                    GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-            pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
-                    GoBildaPinpointDriver.EncoderDirection.FORWARD);
-            pinpoint.setOffsets(PINPOINT_X_OFFSET_IN, PINPOINT_Y_OFFSET_IN, DistanceUnit.INCH);
-            pinpoint.resetPosAndIMU();
+            if (initializePinpoint) {
+                pinpoint.setEncoderResolution(
+                        GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+                pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
+                        GoBildaPinpointDriver.EncoderDirection.FORWARD);
+                pinpoint.setOffsets(PINPOINT_X_OFFSET_IN, PINPOINT_Y_OFFSET_IN, DistanceUnit.INCH);
+                pinpoint.resetPosAndIMU();
+            }
             pinpointReady = true;
         } catch (Exception exception) {
             pinpoint = null;
@@ -91,11 +90,9 @@ public class LocalizationSubsystem extends SubsystemBase {
             return;
         }
 
-        long readStarted = System.nanoTime();
         pinpoint.update();
         GoBildaPinpointDriver.DeviceStatus status = pinpoint.getDeviceStatus();
         pinpointStatus = status.toString();
-        periodicBadRead = status == GoBildaPinpointDriver.DeviceStatus.FAULT_BAD_READ;
 
         // 复位尚未完成时不能写入或读取有效位置。
         if (status != GoBildaPinpointDriver.DeviceStatus.READY) {
@@ -103,73 +100,49 @@ public class LocalizationSubsystem extends SubsystemBase {
         }
 
         if (needSetStartPosition) {
-            if (!Double.isFinite(pendingPreviousHeadingRad)) {
-                pendingPreviousHeadingRad = Math.toRadians(headingDeg);
-            }
             setPinpointPosition(pendingXIn, pendingYIn, pendingHeadingRad);
             pinpoint.update();
             pinpointStatus = pinpoint.getDeviceStatus().toString();
             if (!"READY".equals(pinpointStatus)) {
                 return;
             }
-            // 改写场地航向时保留驾驶员前方；读回失败重试也只调整一次。
-            if (Double.isFinite(driverHeadingReferenceRadians) && Double.isFinite(pendingPreviousHeadingRad)) {
-                driverHeadingReferenceRadians = Math.IEEEremainder(driverHeadingReferenceRadians
-                        + (pendingHeadingRad - pendingPreviousHeadingRad), 2.0 * Math.PI);
-            }
-            pendingPreviousHeadingRad = Double.NaN;
             needSetStartPosition = false;
-            positionInitialized = true;
         }
 
         Pose2D pose = pinpoint.getPosition();
         xIn = pose.getX(DistanceUnit.INCH);
         yIn = pose.getY(DistanceUnit.INCH);
         headingDeg = pinpoint.getHeading(AngleUnit.DEGREES);
-        // OT Drive.periodic：参考丢失后在第一帧有效读数时重新取当前朝向为前方。
-        if (!Double.isFinite(driverHeadingReferenceRadians)) {
-            resetDriverHeading();
-        }
-        lastValidDriverHeadingRadians = getDriverHeadingRadians();
-        lastValidDriverHeadingNanos = readStarted;
+        positionInitialized = Double.isFinite(xIn) && Double.isFinite(yIn) && Double.isFinite(headingDeg);
     }
 
-    /** OT Drive.resetDriverHeading：当前车头朝向记为驾驶员前方（START 和左摇杆按下时调用）。 */
+    /** 将当前 IMU 航向记为驾驶员前方；无效读数不会覆盖已有参考。 */
     public void resetDriverHeading() {
-        driverHeadingReferenceRadians = isFieldPoseValid() ? Math.toRadians(headingDeg) : Double.NaN;
-        lastValidDriverHeadingRadians = Double.NaN;
+        double yaw = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        if (Double.isFinite(yaw)) driverHeadingReferenceRadians = yaw;
     }
 
-    /** OT Drive.getDriverHeadingRadians：Pinpoint 不可用时返回 NaN。 */
+    /** 内置 IMU 相对驾驶员前方的航向；无有效 IMU 读数时返回 NaN。 */
     public double getDriverHeadingRadians() {
-        if (!isFieldPoseValid() || !Double.isFinite(driverHeadingReferenceRadians)) {
-            return Double.NaN;
-        }
-        return Math.IEEEremainder(Math.toRadians(headingDeg) - driverHeadingReferenceRadians, 2.0 * Math.PI);
+        double yaw = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        if (!Double.isFinite(yaw)) return Double.NaN;
+        if (!Double.isFinite(driverHeadingReferenceRadians)) driverHeadingReferenceRadians = yaw;
+        return Math.IEEEremainder(yaw - driverHeadingReferenceRadians, 2.0 * Math.PI);
     }
 
-    /**
-     * OT Drive.moveFieldCentric 使用的角度：正常时为驾驶员相对角；短暂坏读（≤0.1 s）沿用上一帧；
-     * 否则 NaN，底盘退回车头坐标驾驶。
-     */
+    /** 手动无头驾驶航向由内置 IMU 提供，与 Pinpoint 状态无关。 */
     public double getManualDriveHeadingRadians() {
-        double heading = getDriverHeadingRadians();
-        if (!Double.isFinite(heading) && periodicBadRead && pinpointReady
-                && pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.FAULT_BAD_READ
-                && System.nanoTime() - lastValidDriverHeadingNanos <= DRIVER_HEADING_HOLD_NANOS) {
-            heading = lastValidDriverHeadingRadians;
-        }
-        return heading;
+        return getDriverHeadingRadians();
     }
 
-    /** 左摇杆按下仍恢复手动默认起点，不修改已保存的自动末位置。 */
+    /** 恢复手动默认起点；Solo 左摇杆按下只重设驾驶员前方，不调用此方法。 */
     public void reset() {
         imu.resetYaw();
+        resetDriverHeading();
         if (pinpointReady) {
             pendingXIn = START_X_IN;
             pendingYIn = START_Y_IN;
             pendingHeadingRad = Math.toRadians(START_HEADING_DEG);
-            pendingPreviousHeadingRad = Double.NaN;
             needSetStartPosition = true;
             positionInitialized = false;
             update();
@@ -182,7 +155,6 @@ public class LocalizationSubsystem extends SubsystemBase {
         pendingXIn = OPTION_RESET_X_IN;
         pendingYIn = OPTION_RESET_Y_IN;
         pendingHeadingRad = Math.toRadians(OPTION_RESET_HEADING_DEG);
-        pendingPreviousHeadingRad = Double.NaN;
         needSetStartPosition = true;
         positionInitialized = false;
         update();
@@ -196,7 +168,6 @@ public class LocalizationSubsystem extends SubsystemBase {
         pendingXIn = xIn + deltaXIn;
         pendingYIn = yIn + deltaYIn;
         pendingHeadingRad = Math.toRadians(headingDeg);
-        pendingPreviousHeadingRad = Double.NaN;
         needSetStartPosition = true;
         positionInitialized = false;
         update();
@@ -212,7 +183,7 @@ public class LocalizationSubsystem extends SubsystemBase {
         headingDeg = Math.toDegrees(headingRad);
     }
 
-    /** 底盘和云台统一使用场地航向；Pinpoint 不可用时才回退到 Control Hub IMU。 */
+    /** 返回场地航向供遥测与云台使用；初始化前返回 Control Hub IMU 航向。 */
     public double getYawRadians() {
         if (positionInitialized) {
             return Math.toRadians(headingDeg);
@@ -252,7 +223,7 @@ public class LocalizationSubsystem extends SubsystemBase {
         return headingDeg;
     }
 
-    /** 射击用场地位姿有效：Pinpoint 已配置、已写入起点、本周期 READY 且坐标有限。 */
+    /** 射击用场地位姿有效：Pinpoint 已连接、本周期 READY 且已读到有限坐标。 */
     public boolean isFieldPoseValid() {
         return pinpointReady && positionInitialized && "READY".equals(pinpointStatus)
                 && Double.isFinite(xIn) && Double.isFinite(yIn) && Double.isFinite(headingDeg);
