@@ -318,6 +318,14 @@ def main():
                 f = source/'org/firstinspires/ftc/teamcode'/rel
                 f.parent.mkdir(parents=True, exist_ok=True)
                 f.write_text(content)
+            if version == 'current':
+                # Historical lifecycle checks exercise archived commands explicitly.
+                # Restore their Java suffix only in the temporary test source tree;
+                # the Android application does not compile these files.
+                for archived in (ROOT/JAVA_ROOT/'command').glob('*.java.disabled'):
+                    target = source/'org/firstinspires/ftc/teamcode/command'/archived.name[:-len('.disabled')]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(archived, target)
             shutil.copy(ROOT/'local-tests/BehaviorReplay.java', source)
             if version == 'current':
                 shutil.copy(ROOT/'local-tests/LifecycleCheck.java', source)

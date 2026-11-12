@@ -30,10 +30,10 @@ public class Teleop extends OpMode {
         drive = new DriveSubsystem(hardwareMap);
         intake = new IntakeSubsystem(hardwareMap);
         shooter = new ShooterSubsystem(hardwareMap);
-        turret = new TurretSubsystem(hardwareMap, true);
+        turret = new TurretSubsystem(hardwareMap, false);
         blocker = new BlockerSubsystem(hardwareMap);
 
-        controls = new TeleopControlCommand(gamepad1, this::getRuntime,
+        controls = new TeleopControlCommand(gamepad1, gamepad2, this::getRuntime,
                 localization, drive, intake, shooter, turret, blocker);
 
         telemetry.addLine(localization.isPinpointReady() ? "Pinpoint: 已启用" : "Pinpoint: 未找到");
@@ -63,9 +63,11 @@ public class Teleop extends OpMode {
         telemetry.update();
     }
 
-    /** 完整按键绑定：所有控制均使用 Gamepad1，Gamepad2 未使用。 */
+    /** 主操负责驾驶机构，副操方向键微调 Pinpoint 坐标。 */
     private void addControlHelp() {
         telemetry.addLine("左摇杆无头平移（START 时车头为前方，按下左摇杆重设），右摇杆转向");
+        telemetry.addLine("按 Option 将 Pinpoint 坐标设为 (72, 72 in, 180°)");
+        telemetry.addLine("副操方向键：上/下 X ±1 in，右/左 Y ±1 in（每按一次）");
         telemetry.addLine("按住 B 用 Pinpoint 控制转向，左摇杆仍可平移");
         telemetry.addLine("START 后飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
         telemetry.addData("统一飞轮转速", "%.0f TPS", ShooterSubsystem.SHOT_TICKS_PER_SECOND);
@@ -74,7 +76,7 @@ public class Teleop extends OpMode {
         telemetry.addLine("按住 LT 全速吸入");
         telemetry.addLine("单独按住 LB：intake + transit 全速退球，优先于吸入");
         telemetry.addLine("按住方向键下：仅 intake 全速吐球");
-        telemetry.addLine("按住 RT 飞轮达速后自动开挡板，松开 RT 关闭；云台固定中位");
+        telemetry.addLine("按住 RT 飞轮达速后自动开挡板，松开 RT 关闭；云台常态自瞄");
     }
 
     @Override
@@ -101,6 +103,7 @@ public class Teleop extends OpMode {
                 drive.getFrontRightPower(), drive.getBackRightPower());
 
         telemetry.addData("Pinpoint 状态", localization.getPinpointStatus());
+        telemetry.addData("副操坐标微调", controls.getTrimStatus());
         if (localization.isPinpointReady()) {
             telemetry.addData("Pinpoint X/Y (in)", "(%.2f, %.2f)",
                     localization.getXIn(), localization.getYIn());
@@ -109,7 +112,10 @@ public class Teleop extends OpMode {
                     TurretSubsystem.normalizeDegrees(localization.getHeadingDeg() - localization.getImuYawDegrees()));
         }
 
-        telemetry.addData("云台中位", "%.3f", turret.getPosition());
+        telemetry.addData("云台位置", "%.3f", turret.getPosition());
+        telemetry.addData("云台目标", !localization.isFieldPoseValid() ? "等待有效定位"
+                : !turret.hasValidAim() ? "无有效目标" : turret.isReachable() ? "在限位内" : "超出限位");
+        telemetry.addData("云台估计瞄准", controls.isTurretAimed() ? "是（无位置反馈）" : "否");
         telemetry.addData("挡板", "%s (%.2f)", blocker.isOpen() ? "开" : "关", blocker.getPosition());
         telemetry.addData("底盘转向", controls.isAiming() ? "Pinpoint 自瞄" : "右摇杆");
         if (controls.isAiming()) {

@@ -44,7 +44,7 @@ public class AutoMidShot extends LinearOpMode {
     private final PoseFactory poseFactory = PoseFactory.degrees();
 
     private final Pose start = poseFactory.of(54.2726, 7.9672, 270);
-    private final Pose point101path101path1 = poseFactory.of(59.7908, 21.3843, 270);
+    private final Pose point101path101path1 = poseFactory.of(59.7908, 10, 270);
     private final Pose point2 = poseFactory.of(23.3669, 21.5333, 270);
     private final Pose point3 = poseFactory.of(23.8706, 107.6622, 270);
     private final Pose point407path7Start = poseFactory.of(23.8706, 107.6622, 0);

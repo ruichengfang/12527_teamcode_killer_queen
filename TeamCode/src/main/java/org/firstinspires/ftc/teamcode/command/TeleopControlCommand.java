@@ -9,6 +9,7 @@ import java.util.function.DoubleSupplier;
 import org.firstinspires.ftc.teamcode.shoot.AutoAimController;
 import org.firstinspires.ftc.teamcode.shoot.PinpointAimTarget;
 import org.firstinspires.ftc.teamcode.shoot.ShootConstants;
+import org.firstinspires.ftc.teamcode.shoot.TurretAimFeedback;
 import org.firstinspires.ftc.teamcode.subsystem.BlockerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
@@ -19,6 +20,10 @@ import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 /** 双摇杆驾驶、B 底盘自瞄、飞轮常转、RT 达速开挡板并送料。 */
 public final class TeleopControlCommand extends CommandBase {
     private final Gamepad gamepad;
+    private final Gamepad operatorGamepad;
+    public static final double PINPOINT_TRIM_STEP_IN = 1.0;
+    private final PinpointTrimButtons trimButtons = new PinpointTrimButtons();
+    private String trimStatus = "未调整";
     private final DoubleSupplier time;
     private final LocalizationSubsystem localization;
     private final TurretSubsystem turret;
@@ -31,18 +36,21 @@ public final class TeleopControlCommand extends CommandBase {
     private final PinpointAimTarget aimTarget;
     private final AutoAimController autoAim;
     private final ElapsedTime blockerOpenTimer = new ElapsedTime();
+    private final TurretAimFeedback turretFeedback = new TurretAimFeedback();
 
     private double lastTime, deltaSeconds;
     private boolean previousB;
     private boolean previousLeftStickButton;
+    private boolean previousOptions;
     private boolean previousLeftBumper;
     private boolean aiming;
 
-    public TeleopControlCommand(Gamepad gamepad, DoubleSupplier time,
+    public TeleopControlCommand(Gamepad gamepad, Gamepad operatorGamepad, DoubleSupplier time,
             LocalizationSubsystem localization, DriveSubsystem drive,
             IntakeSubsystem intake, ShooterSubsystem shooter,
             TurretSubsystem turret, BlockerSubsystem blocker) {
         this.gamepad = gamepad;
+        this.operatorGamepad = operatorGamepad;
         this.time = time;
         this.localization = localization;
         this.turret = turret;
@@ -68,8 +76,13 @@ public final class TeleopControlCommand extends CommandBase {
         lastTime = time.getAsDouble();
         previousB = gamepad.b;
         previousLeftStickButton = gamepad.left_stick_button;
+        previousOptions = gamepad.options;
+        trimButtons.update(operatorGamepad.dpad_up, operatorGamepad.dpad_down,
+                operatorGamepad.dpad_left, operatorGamepad.dpad_right);
+        trimStatus = "未调整";
         previousLeftBumper = gamepad.left_bumper;
         aiming = false;
+        turretFeedback.reset();
         localization.update();
         localization.resetDriverHeading(); // OT: drive.resetDriverHeading() at START
         blocker.setOpen(false);
@@ -85,7 +98,26 @@ public final class TeleopControlCommand extends CommandBase {
         deltaSeconds = Math.max(now - lastTime, 1e-4);
         lastTime = now;
         localization.update();
+        if ("等待 Pinpoint 恢复".equals(trimStatus) && localization.isFieldPoseValid()) {
+            trimStatus = "已调整";
+        }
+        boolean resetPressed = gamepad.options && !previousOptions;
+        if (resetPressed) localization.resetToFieldCenter();
+        previousOptions = gamepad.options;
+        trimButtons.update(operatorGamepad.dpad_up, operatorGamepad.dpad_down,
+                operatorGamepad.dpad_left, operatorGamepad.dpad_right);
+        int dx = trimButtons.getXDirection(), dy = trimButtons.getYDirection();
+        if (!resetPressed && (dx != 0 || dy != 0)) {
+            boolean accepted = localization.adjustFieldPosition(
+                    dx * PINPOINT_TRIM_STEP_IN, dy * PINPOINT_TRIM_STEP_IN);
+            trimStatus = !accepted ? "未调整：定位无效" : localization.isFieldPoseValid()
+                    ? "已调整" : "等待 Pinpoint 恢复";
+        }
+        if (!turret.isAimMode() && localization.isFieldPoseValid()) {
+            turret.setAimMode(true, true);
+        }
         turret.update(localization);
+        updateTurretFeedback(now);
         aimTarget.update();
         // OT: 左摇杆按下重新设定驾驶员前方。
         if (gamepad.left_stick_button && !previousLeftStickButton) localization.resetDriverHeading();
@@ -109,6 +141,21 @@ public final class TeleopControlCommand extends CommandBase {
             driveCommand.execute();
         }
     }
+
+    /** 无舵机角度反馈：目标在可达范围且指令稳定一段时间后提示一次。 */
+    private void updateTurretFeedback(double now) {
+        boolean valid = localization.isFieldPoseValid() && turret.isAimMode()
+                && turret.hasValidAim() && turret.isReachable();
+        if (turretFeedback.update(valid, turret.getCommandedRelativeDegrees(), now)) {
+            gamepad.rumble(200);
+        }
+    }
+
+    public boolean isTurretAimed() {
+        return turretFeedback.isAimed();
+    }
+
+    public String getTrimStatus() { return trimStatus; }
 
     /**
      * 按住 RT 且飞轮达速（ShooterSubsystem.isReady，OT 规则，不看自瞄）时打开挡板 blockerServo。

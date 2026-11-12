@@ -8,16 +8,16 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 
 /** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
 public class TurretSubsystem extends SubsystemBase {
-    // 比赛手动固定云台中位，B 键通过 Pinpoint 控制底盘瞄准。
-    public static final boolean FIXED_POSITION_ENABLED = true;
+    public static final boolean FIXED_POSITION_ENABLED = false;
     public static final double INIT_POSITION = 0.5;
-    public static final double SOFT_LIMIT_DEG = 90.0;
+    /** 云台相对中位左右各 60°，总行程 120°。 */
+    public static final double SOFT_LIMIT_DEG = 60.0;
     public static final double MANUAL_STEP_DEG = 2.0;
 
     private static final double SERVO_RANGE_DEG = 300.0;
-    private static final double SOFT_HALF_POSITION = SOFT_LIMIT_DEG / SERVO_RANGE_DEG;
     private static final double DEADBAND_DEG = 0.5;
     private static final double MECHANICAL_RATIO = 0.98;
+    private static final double SOFT_HALF_POSITION = SOFT_LIMIT_DEG / MECHANICAL_RATIO / SERVO_RANGE_DEG;
     private static final double TURRET_SIGN = 1.0;
     // 以下瞄点常量也供射击命令（shoot/ShotTarget）共用。
     public static final double MOUNT_OFFSET_DEG = 180.0;
@@ -101,7 +101,7 @@ public class TurretSubsystem extends SubsystemBase {
             hasValidAim = false;
             targetYawDeg = normalizeDegrees(robotYawDeg + MOUNT_OFFSET_DEG
                     + TURRET_SIGN * (position - INIT_POSITION)
-                    * SERVO_RANGE_DEG / MECHANICAL_RATIO);
+                    * SERVO_RANGE_DEG * MECHANICAL_RATIO);
         }
     }
 
@@ -146,7 +146,13 @@ public class TurretSubsystem extends SubsystemBase {
             return;
         }
 
-        if (localization.isPinpointReady()) {
+        if (aimMode && !localization.isFieldPoseValid()) {
+            hasValidAim = false;
+            reachable = false;
+            setServoPositions(position);
+            return;
+        }
+        if (localization.isFieldPoseValid()) {
             updateAimPoint(localization.getYIn());
         }
 
@@ -156,7 +162,7 @@ public class TurretSubsystem extends SubsystemBase {
         rawPosition = INIT_POSITION;
         reachable = true;
 
-        if (aimMode && localization.isPinpointReady()) {
+        if (aimMode && localization.isFieldPoseValid()) {
             updateAutoAim(localization, yawRad, yawDeg);
         } else if (lockMode) {
             updateLock(yawRad, yawDeg);
@@ -205,13 +211,10 @@ public class TurretSubsystem extends SubsystemBase {
             lastValidAimTargetDeg = aimTargetDeg;
             hasValidAim = true;
             targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
-        } else if (hasValidAim) {
-            aimTargetDeg = lastValidAimTargetDeg;
-            targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
         } else {
-            double currentAbsoluteDeg = getCurrentAbsoluteDegrees(yawDeg);
-            targetYawDeg = currentAbsoluteDeg;
-            aimTargetDeg = normalizeDegrees(currentAbsoluteDeg - aimOffsetDeg);
+            hasValidAim = false;
+            reachable = false;
+            return;
         }
 
         updateServoTarget(yawRad, yawDeg);
@@ -253,7 +256,7 @@ public class TurretSubsystem extends SubsystemBase {
     private double getCurrentAbsoluteDegrees(double robotYawDeg) {
         return normalizeDegrees(robotYawDeg + MOUNT_OFFSET_DEG
                 + TURRET_SIGN * (position - INIT_POSITION)
-                * SERVO_RANGE_DEG / MECHANICAL_RATIO);
+                * SERVO_RANGE_DEG * MECHANICAL_RATIO);
     }
 
     private void updateAimDistance(LocalizationSubsystem localization) {
@@ -303,6 +306,11 @@ public class TurretSubsystem extends SubsystemBase {
 
     public double getPosition() {
         return position;
+    }
+
+    /** 根据舵机指令估算的云台相对中位角度；不是传感器读数。 */
+    public double getCommandedRelativeDegrees() {
+        return (position - INIT_POSITION) * SERVO_RANGE_DEG * MECHANICAL_RATIO * TURRET_SIGN;
     }
 
     public double getTargetYawDeg() {

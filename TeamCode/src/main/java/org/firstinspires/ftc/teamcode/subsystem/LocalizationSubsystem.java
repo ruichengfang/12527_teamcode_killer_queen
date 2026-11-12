@@ -17,11 +17,14 @@ public class LocalizationSubsystem extends SubsystemBase {
     public static final double START_X_IN = 8.0;
     public static final double START_Y_IN = 111.0;
     public static final double START_HEADING_DEG = 0.0;
+    public static final double OPTION_RESET_X_IN = 72.0;
+    public static final double OPTION_RESET_Y_IN = 72.0;
+    public static final double OPTION_RESET_HEADING_DEG = 180.0;
 
     // 遥操实测值，也是全车唯一的 pod 偏移来源；pedro/Constants.java 的
     // xPodOffset / yPodOffset 必须与此相同，改一处要同时改另一处。
-    public static final double PINPOINT_X_OFFSET_IN = 0.787402;
-    public static final double PINPOINT_Y_OFFSET_IN = 5.323543;
+    public static final double PINPOINT_X_OFFSET_IN = -0.787402;
+    public static final double PINPOINT_Y_OFFSET_IN = -5.323543;
 
     private final IMU imu;
     private GoBildaPinpointDriver pinpoint;
@@ -32,6 +35,7 @@ public class LocalizationSubsystem extends SubsystemBase {
     private double pendingXIn;
     private double pendingYIn;
     private double pendingHeadingRad;
+    private double pendingPreviousHeadingRad = Double.NaN;
     private String pinpointStatus = "N/A";
     private double xIn;
     private double yIn;
@@ -99,18 +103,21 @@ public class LocalizationSubsystem extends SubsystemBase {
         }
 
         if (needSetStartPosition) {
-            double previousHeadingRad = Math.toRadians(headingDeg);
-            setPinpointPosition(pendingXIn, pendingYIn, pendingHeadingRad);
-            // OT updateVisionPose：改写场地航向不能改变驾驶员的“前方”。
-            if (Double.isFinite(driverHeadingReferenceRadians) && Double.isFinite(previousHeadingRad)) {
-                driverHeadingReferenceRadians = Math.IEEEremainder(driverHeadingReferenceRadians
-                        + (pendingHeadingRad - previousHeadingRad), 2.0 * Math.PI);
+            if (!Double.isFinite(pendingPreviousHeadingRad)) {
+                pendingPreviousHeadingRad = Math.toRadians(headingDeg);
             }
+            setPinpointPosition(pendingXIn, pendingYIn, pendingHeadingRad);
             pinpoint.update();
             pinpointStatus = pinpoint.getDeviceStatus().toString();
             if (!"READY".equals(pinpointStatus)) {
                 return;
             }
+            // 改写场地航向时保留驾驶员前方；读回失败重试也只调整一次。
+            if (Double.isFinite(driverHeadingReferenceRadians) && Double.isFinite(pendingPreviousHeadingRad)) {
+                driverHeadingReferenceRadians = Math.IEEEremainder(driverHeadingReferenceRadians
+                        + (pendingHeadingRad - pendingPreviousHeadingRad), 2.0 * Math.PI);
+            }
+            pendingPreviousHeadingRad = Double.NaN;
             needSetStartPosition = false;
             positionInitialized = true;
         }
@@ -162,10 +169,38 @@ public class LocalizationSubsystem extends SubsystemBase {
             pendingXIn = START_X_IN;
             pendingYIn = START_Y_IN;
             pendingHeadingRad = Math.toRadians(START_HEADING_DEG);
+            pendingPreviousHeadingRad = Double.NaN;
             needSetStartPosition = true;
             positionInitialized = false;
             update();
         }
+    }
+
+    /** Option：将场地位姿写为 (72 in, 72 in, 180°)，等待 Pinpoint READY 后生效。 */
+    public boolean resetToFieldCenter() {
+        if (!pinpointReady) return false;
+        pendingXIn = OPTION_RESET_X_IN;
+        pendingYIn = OPTION_RESET_Y_IN;
+        pendingHeadingRad = Math.toRadians(OPTION_RESET_HEADING_DEG);
+        pendingPreviousHeadingRad = Double.NaN;
+        needSetStartPosition = true;
+        positionInitialized = false;
+        update();
+        return true;
+    }
+
+    /** 在当前有效位姿基础上平移坐标，保持场地航向和驾驶员前方。 */
+    public boolean adjustFieldPosition(double deltaXIn, double deltaYIn) {
+        if (!isFieldPoseValid() || !Double.isFinite(deltaXIn) || !Double.isFinite(deltaYIn)
+                || !Double.isFinite(xIn + deltaXIn) || !Double.isFinite(yIn + deltaYIn)) return false;
+        pendingXIn = xIn + deltaXIn;
+        pendingYIn = yIn + deltaYIn;
+        pendingHeadingRad = Math.toRadians(headingDeg);
+        pendingPreviousHeadingRad = Double.NaN;
+        needSetStartPosition = true;
+        positionInitialized = false;
+        update();
+        return true;
     }
 
     private void setPinpointPosition(double xIn, double yIn, double headingRad) {

@@ -1,5 +1,12 @@
 # 本地行为对照测试
 
+历史测试仍会直接检查部分已停用的旧 Command。测试脚本只在临时目录中将
+`command/*.java.disabled` 还原为 `.java` 后编译；正式 Android 应用不会编译这些文件。
+旧行为对照和断言针对此前版本，不能作为当前比赛行为已通过验证的证明。
+
+云台自瞄和震动状态可单独用 `python local-tests/turret_aim_check.py` 检查，
+需要 Python 3 和 JDK；测试使用硬件替身，不代表舵机已完成实车校准。
+
 依赖：Python 3、JDK、工程构建时使用的 FTCLib 2.1.1 `classes.jar`。
 不联网、不连接机器人、不改变当前 Git 工作区，不保存另一份完整工程。
 临时目录只提取测试所需 Java 源码，测试结束自动清除。
