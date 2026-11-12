@@ -42,6 +42,29 @@ public class Constants {
         c.offsetUnits.set(DistanceUnit.INCH);
     });
 
+    // 2026-11-12 14:44 KQ 实车 Foresight Tuner 导出（替换旧值，旧值见下方注释）。
+    // 注意：横移最大速度 10.46 in/s、横移自然减速 367.95 明显异常（前进 69.24 / 29.89），
+    // 横移那一步可能没测好，若自动横移很慢或乱抖请重跑 Foresight Tuner 的横移部分。
+    public static ForesightConfig foresightConfig = new ForesightConfig(c -> {
+        Controller primaryTranslationalForward = Controller.proportional(0.49107433874329315);
+        Controller secondaryTranslationalForward = Controller.proportional(0.1814388464176489);
+        Controller primaryTranslationalLateral = Controller.proportional(2.187894025540989);
+        Controller secondaryTranslationalLateral = Controller.proportional(0.80836838083233);
+
+        c.forwardTranslational.set(Controller.piecewise(secondaryTranslationalForward).put(2.5, primaryTranslationalForward));
+        c.strafeTranslational.set(Controller.piecewise(secondaryTranslationalLateral).put(2.5, primaryTranslationalLateral));
+        c.coast.set(Controller.proportionalFeedforward(0.014091812497175815));
+        c.brake.set(Controller.proportionalFeedforward(0.011978040622599443));
+        c.headingFeedback.set(Controller.proportional(5.95718587109727));
+        c.headingBrakeCoefficients.set(Vector2D.cartesian(0.06885685204964327, 0.005784370933185721));
+        c.linearBrakeCoefficients.set(Matrix.diag(0.08425479900727059, 0.03426819968397982));
+        c.quadraticBrakeCoefficients.set(Matrix.diag(0.0025213536722832326, 0.003329157168608347));
+        c.maxAchievableForwardVelocity.set(69.24226008529448);
+        c.maxAchievableStrafeVelocity.set(10.46290572005562);
+        c.naturalForwardDeceleration.set(29.88908823634799);
+        c.naturalStrafeDeceleration.set(367.95122926248916);
+    });
+    /* 旧值（2026-11-12 前）：
     public static ForesightConfig foresightConfig = new ForesightConfig(c -> {
         Controller primaryTranslationalForward = Controller.proportional(0.38393330018585853);
         Controller secondaryTranslationalForward = Controller.proportional(0.14185309553195313);
@@ -61,6 +84,7 @@ public class Constants {
         c.naturalForwardDeceleration.set(31.365307658162813);
         c.naturalStrafeDeceleration.set(62.98938045238759);
     });
+    */
 
     /** Used by the Pedro AutoTune web UI (pedro/Tuning.java, port 10158). */
     public static Foresight createAlgorithm() {

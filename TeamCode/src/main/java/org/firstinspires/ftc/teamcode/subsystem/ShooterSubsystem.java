@@ -47,11 +47,12 @@ public class ShooterSubsystem extends SubsystemBase {
 
     // 2026-11-12 三档射击（Solo：只按 RT = 远射，RB+RT = 中射，LB+RT = 近射）：
     //   远射：shooterServo 0.91（SERVO_LOW），1500 TPS
-    //   中射：shooterServo 0.89（SERVO_MID），1390 TPS —— 用户未给数值，暂取远/近中点，待实车标定
+    //   中射：shooterServo 与近射相同（SERVO_HIGH 0.87），1500 TPS
     //   近射：shooterServo 0.87（SERVO_HIGH），1280 TPS
-    public static double SERVO_MID = 0.89;
-    public static double FAR_TICKS_PER_SECOND = 1500.0;
-    public static double MID_TICKS_PER_SECOND = 1390.0;
+    public static double FAR_TICKS_PER_SECOND = 1580.0; // 2026-11-12 由 1500 上调
+    public static double MID_TICKS_PER_SECOND = 1500.0; // 2026-11-12 15:30 由 1470 改
+    /** 射击时（手动 RT / 自动射击）transit 功率；LT 吸球仍为满功率。 */
+    public static double SHOT_TRANSIT_POWER = 0.8;
     public static double NEAR_TICKS_PER_SECOND = 1280.0;
 
     public enum ShotMode { FAR, MID, NEAR }
@@ -60,7 +61,7 @@ public class ShooterSubsystem extends SubsystemBase {
     /** 选档：同时设 shooterServo 位置和目标转速（RT 按住时立即改追新转速）。 */
     public void setShotMode(ShotMode mode) {
         shotMode = mode;
-        setServoPosition(mode == ShotMode.NEAR ? SERVO_HIGH : mode == ShotMode.MID ? SERVO_MID : SERVO_LOW);
+        setServoPosition(mode == ShotMode.NEAR ? SERVO_HIGH : mode == ShotMode.MID ? SERVO_HIGH : SERVO_LOW);
         if (targetRpm > 0.0) setTargetRpm(getShotRpm());
     }
 

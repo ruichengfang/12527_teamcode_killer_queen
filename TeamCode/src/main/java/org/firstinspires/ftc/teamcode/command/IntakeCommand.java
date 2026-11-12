@@ -34,7 +34,7 @@ public final class IntakeCommand extends CommandBase {
             // 2026-11-12：RT 准备射击时 intake 也满功率转。
             if (shootRequested) {
                 intakePower = ShootConstants.INTAKE_ACTIVE_POWER;
-                transitPower = ShootConstants.TRANSIT_FEED_POWER;
+                transitPower = org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem.SHOT_TRANSIT_POWER; // 射击时 0.8
             }
         }
         intake.setPowers(intakePower, transitPower);

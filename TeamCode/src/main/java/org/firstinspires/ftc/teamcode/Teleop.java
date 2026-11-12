@@ -71,7 +71,7 @@ public class Teleop extends OpMode {
         telemetry.addData("只按 RT 远射", "servo %.2f / %.0f TPS",
                 ShooterSubsystem.SERVO_LOW, ShooterSubsystem.FAR_TICKS_PER_SECOND);
         telemetry.addData("RB + RT 中射", "servo %.2f / %.0f TPS",
-                ShooterSubsystem.SERVO_MID, ShooterSubsystem.MID_TICKS_PER_SECOND);
+                ShooterSubsystem.SERVO_HIGH, ShooterSubsystem.MID_TICKS_PER_SECOND);
         telemetry.addData("LB + RT 近射", "servo %.2f / %.0f TPS",
                 ShooterSubsystem.SERVO_HIGH, ShooterSubsystem.NEAR_TICKS_PER_SECOND);
         telemetry.addLine("按住 LT 全速吸入");
