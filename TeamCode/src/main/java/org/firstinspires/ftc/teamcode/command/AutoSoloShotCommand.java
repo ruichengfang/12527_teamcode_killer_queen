@@ -19,7 +19,7 @@ public class AutoSoloShotCommand extends CommandBase {
     /** transit 开始转动后的送料时间，待实车确认几颗球能送完。 */
     public static long FEED_MS = 1000;
     /** 整次射击的超时保护。 */
-    public static long TIMEOUT_MS = 5000;
+    public static long TIMEOUT_MS = 3000;
 
     private final PathFollowerSubsystem drive;
     private final ShooterSubsystem shooter;
