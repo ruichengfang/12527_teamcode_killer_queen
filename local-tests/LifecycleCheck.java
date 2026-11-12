@@ -48,7 +48,7 @@ public final class LifecycleCheck {
         DcMotorEx fly = hw.get(DcMotorEx.class, NameConstants.SHOOTER_0);
         check(controls.getRequirements().size() == 6, "parent owns all six subsystems");
 
-        pad.a = pad.x = pad.y = pad.left_bumper = pad.right_bumper = true;
+        pad.a = pad.x = pad.y = pad.right_bumper = true;
         pad.dpad_up = pad.dpad_right = pad.left_stick_button = true;
         int pinpointResets = od.resets;
         int imuResets = hw.get(IMU.class, NameConstants.IMU).resets;
@@ -71,9 +71,23 @@ public final class LifecycleCheck {
         tick(op, time += .02);
         close(power(hw, NameConstants.INTAKE), 1, "LT alone runs intake at full power");
         close(fly.power, 0, "LT alone leaves flywheel stopped");
+        pad.left_bumper = true;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.INTAKE), -1, "LB eject overrides LT intake");
+        close(power(hw, NameConstants.TRANSIT), -1, "LB eject reverses transit at full power");
+        close(fly.power, 0, "LB eject alone leaves flywheel stopped");
+        pad.right_trigger = .25f;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.INTAKE), 1, "LB and RT preserve shooting intake");
+        close(power(hw, NameConstants.TRANSIT), ShooterSubsystem.SHOT_TRANSIT_POWER,
+                "LB and RT preserve shooting transit");
+        check(shooter.getShotMode() == ShooterSubsystem.ShotMode.NEAR, "LB and RT preserve near shot");
+        pad.left_bumper = false;
+        pad.right_trigger = 0;
         pad.left_trigger = 0;
         tick(op, time += .02);
-        close(power(hw, NameConstants.INTAKE), 0, "release LT stops intake");
+        close(power(hw, NameConstants.INTAKE), 0, "release LB and triggers stops intake");
+        close(power(hw, NameConstants.TRANSIT), 0, "release LB and triggers stops transit");
 
         pad.left_stick_y = -.5f;
         tick(op, time += .02);

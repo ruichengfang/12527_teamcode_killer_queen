@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
-/** 双摇杆驾驶、B 底盘自瞄、RT 飞轮（达速后开挡板）、LT 吸入、RT 时 transit 送料、方向键下吐球。 */
+/** 双摇杆驾驶、B 底盘自瞄、RT 飞轮（达速后开挡板）、LT 吸入、RT 时 transit 送料、LB 退球。 */
 public final class TeleopControlCommand extends CommandBase {
     private final Gamepad gamepad;
     private final DoubleSupplier time;

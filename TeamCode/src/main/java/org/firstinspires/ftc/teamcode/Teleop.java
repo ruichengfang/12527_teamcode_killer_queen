@@ -75,7 +75,8 @@ public class Teleop extends OpMode {
         telemetry.addData("LB + RT 近射", "servo %.2f / %.0f TPS",
                 ShooterSubsystem.SERVO_HIGH, ShooterSubsystem.NEAR_TICKS_PER_SECOND);
         telemetry.addLine("按住 LT 全速吸入");
-        telemetry.addLine("按住方向键下全速吐球，优先于吸入");
+        telemetry.addLine("单独按住 LB：intake + transit 全速退球，优先于吸入");
+        telemetry.addLine("按住方向键下：仅 intake 全速吐球");
         telemetry.addLine("按住 RT 飞轮达速后自动开挡板，松开 RT 关闭；云台固定中位");
     }
 

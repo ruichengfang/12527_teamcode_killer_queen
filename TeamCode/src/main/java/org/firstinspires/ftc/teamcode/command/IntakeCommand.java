@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.teamcode.shoot.ShootConstants;
 import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
 
-/** LT 或 RT（射击）：intake + transit 全速；方向键下优先反转吐球。 */
+/** LT 或 RT（射击）：intake + transit 全速；单独按住 LB 优先联动反转退球。 */
 public final class IntakeCommand extends CommandBase {
     private final IntakeSubsystem intake;
     private final Gamepad gamepad;
@@ -23,8 +23,12 @@ public final class IntakeCommand extends CommandBase {
         boolean shootRequested = gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD;
         double intakePower = 0.0;
         double transitPower = 0.0;
-        if (gamepad.dpad_down) {
-            intakePower = -1.0;
+        if (gamepad.left_bumper && !shootRequested) {
+            // 单独按住 LB 时全速退球；LB + RT 保留原有近射组合键。
+            intakePower = ShootConstants.INTAKE_JAM_POWER;
+            transitPower = ShootConstants.TRANSIT_REVERSE_POWER;
+        } else if (gamepad.dpad_down) {
+            intakePower = ShootConstants.INTAKE_JAM_POWER;
         } else {
             // 2026-11-12：LT 吸球时 intake 与 transit 都满功率；RT 射击时 transit 满功率。
             if (intakeRequested) {
