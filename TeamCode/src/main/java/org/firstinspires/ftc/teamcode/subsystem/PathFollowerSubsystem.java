@@ -29,6 +29,11 @@ public final class PathFollowerSubsystem extends SubsystemBase {
         follower.follow(path);
     }
 
+    /** OT 自动的完成条件：Pedro 不再 busy（到达并收敛）。 */
+    public boolean isBusy() {
+        return follower.isBusy();
+    }
+
     public boolean atParametricEnd() {
         return follower.atParametricEnd();
     }

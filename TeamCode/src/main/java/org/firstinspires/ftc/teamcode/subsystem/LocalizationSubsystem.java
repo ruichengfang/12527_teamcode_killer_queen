@@ -38,6 +38,14 @@ public class LocalizationSubsystem extends SubsystemBase {
     private double headingDeg;
 
     /** 手动使用：有自动记录则恢复自动末位置，否则使用默认起点。 */
+    // ---- OT Drive 无头驾驶参考（移植自 Overtune Drive.java，逻辑不变）----
+    /** OT DRIVER_HEADING_HOLD_NANOS：Pinpoint 短暂坏读时沿用上一帧有效角度的时长。 */
+    private static final long DRIVER_HEADING_HOLD_NANOS = 100_000_000L;
+    private double driverHeadingReferenceRadians = Double.NaN;
+    private boolean periodicBadRead;
+    private double lastValidDriverHeadingRadians = Double.NaN;
+    private long lastValidDriverHeadingNanos;
+
     public LocalizationSubsystem(HardwareMap hardwareMap) {
         this(hardwareMap,
                 AutoEndPose.hasValue() ? AutoEndPose.getXIn() : START_X_IN,
@@ -79,9 +87,11 @@ public class LocalizationSubsystem extends SubsystemBase {
             return;
         }
 
+        long readStarted = System.nanoTime();
         pinpoint.update();
         GoBildaPinpointDriver.DeviceStatus status = pinpoint.getDeviceStatus();
         pinpointStatus = status.toString();
+        periodicBadRead = status == GoBildaPinpointDriver.DeviceStatus.FAULT_BAD_READ;
 
         // 复位尚未完成时不能写入或读取有效位置。
         if (status != GoBildaPinpointDriver.DeviceStatus.READY) {
@@ -89,7 +99,13 @@ public class LocalizationSubsystem extends SubsystemBase {
         }
 
         if (needSetStartPosition) {
+            double previousHeadingRad = Math.toRadians(headingDeg);
             setPinpointPosition(pendingXIn, pendingYIn, pendingHeadingRad);
+            // OT updateVisionPose：改写场地航向不能改变驾驶员的“前方”。
+            if (Double.isFinite(driverHeadingReferenceRadians) && Double.isFinite(previousHeadingRad)) {
+                driverHeadingReferenceRadians = Math.IEEEremainder(driverHeadingReferenceRadians
+                        + (pendingHeadingRad - previousHeadingRad), 2.0 * Math.PI);
+            }
             pinpoint.update();
             pinpointStatus = pinpoint.getDeviceStatus().toString();
             if (!"READY".equals(pinpointStatus)) {
@@ -103,6 +119,40 @@ public class LocalizationSubsystem extends SubsystemBase {
         xIn = pose.getX(DistanceUnit.INCH);
         yIn = pose.getY(DistanceUnit.INCH);
         headingDeg = pinpoint.getHeading(AngleUnit.DEGREES);
+        // OT Drive.periodic：参考丢失后在第一帧有效读数时重新取当前朝向为前方。
+        if (!Double.isFinite(driverHeadingReferenceRadians)) {
+            resetDriverHeading();
+        }
+        lastValidDriverHeadingRadians = getDriverHeadingRadians();
+        lastValidDriverHeadingNanos = readStarted;
+    }
+
+    /** OT Drive.resetDriverHeading：当前车头朝向记为驾驶员前方（START 和左摇杆按下时调用）。 */
+    public void resetDriverHeading() {
+        driverHeadingReferenceRadians = isFieldPoseValid() ? Math.toRadians(headingDeg) : Double.NaN;
+        lastValidDriverHeadingRadians = Double.NaN;
+    }
+
+    /** OT Drive.getDriverHeadingRadians：Pinpoint 不可用时返回 NaN。 */
+    public double getDriverHeadingRadians() {
+        if (!isFieldPoseValid() || !Double.isFinite(driverHeadingReferenceRadians)) {
+            return Double.NaN;
+        }
+        return Math.IEEEremainder(Math.toRadians(headingDeg) - driverHeadingReferenceRadians, 2.0 * Math.PI);
+    }
+
+    /**
+     * OT Drive.moveFieldCentric 使用的角度：正常时为驾驶员相对角；短暂坏读（≤0.1 s）沿用上一帧；
+     * 否则 NaN，底盘退回车头坐标驾驶。
+     */
+    public double getManualDriveHeadingRadians() {
+        double heading = getDriverHeadingRadians();
+        if (!Double.isFinite(heading) && periodicBadRead && pinpointReady
+                && pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.FAULT_BAD_READ
+                && System.nanoTime() - lastValidDriverHeadingNanos <= DRIVER_HEADING_HOLD_NANOS) {
+            heading = lastValidDriverHeadingRadians;
+        }
+        return heading;
     }
 
     /** 左摇杆按下仍恢复手动默认起点，不修改已保存的自动末位置。 */

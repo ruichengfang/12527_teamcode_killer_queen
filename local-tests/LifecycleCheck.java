@@ -33,102 +33,109 @@ public final class LifecycleCheck {
     static double power(HardwareMap h,String n){return h.get(DcMotorEx.class,n).power;}
     static double servo(HardwareMap h,String n){return h.get(Servo.class,n).position;}
 
-    /** Ported Overtune ShootAssistCommand on hold-B: gate, continuous feed, jam, invalid target, release. */
-    static void shootingAndOwnership()throws Exception {
-        AutoEndPose.clear();scheduler().reset();
-        Teleop op=new Teleop();op.hardwareMap=BehaviorReplay.hardware(true);op.init();op.start();
-        HardwareMap hw=op.hardwareMap;
-        TeleopControlCommand controls=(TeleopControlCommand)field(op,"controls");
-        check(controls.getRequirements().size()==6,"parent must own all six subsystems");
-        GoBildaPinpointDriver od=hw.get(GoBildaPinpointDriver.class,NameConstants.PINPOINT);
-        DcMotorEx fly=hw.get(DcMotorEx.class,NameConstants.SHOOTER_0);
-        tick(op,0);   // localization writes start pose
-        // Robot at (100,84) heading 0: target (60,84) lies directly behind -> rear shooter aligned (OT 180 deg).
-        od.pose=new Pose2D(DistanceUnit.INCH,100,84,AngleUnit.DEGREES,0);
-        double t=0.02;
-        op.gamepad1.b=true;tick(op,t);
-        ShootAssistCommand assist=controls.getShootAssist();
-        close(controls.getAimTarget().getYawErrorDegrees(),0,"rear-facing yaw error");
-        close(controls.getAimTarget().getTargetYInches(),84,"upper-half aim point");
-        // Like OT (Shooter.periodic before commands) the PID writes the new target next cycle.
-        t+=.02;tick(op,t);
-        check(fly.power<0,"flywheel spins up on B");
-        // Aim locks but flywheel speed is not ready -> no gate, no transit feed.
-        for(int i=0;i<20;i++){t+=.02;tick(op,t);}
-        check(controls.getAutoAim().isLocked(),"aligned chassis locks after stable time");
-        check(!((ShooterSubsystem)field(op,"shooter")).isReady(),"stalled flywheel not ready");
-        check(assist.getFiringState()==ShotTransit.FiringState.WAITING,"waiting before speed ready");
-        close(power(hw,NameConstants.TRANSIT),0,"no transit feed before speed ready");
-        close(servo(hw,NameConstants.BLOCKER),.38,"gate closed before speed ready");
-        // Position hold: displacement while no stick input drives back toward the anchor.
-        od.pose=new Pose2D(DistanceUnit.INCH,102,84,AngleUnit.DEGREES,0);
-        t+=.02;tick(op,t);
-        check(power(hw,NameConstants.FRONT_LEFT)<0&&power(hw,NameConstants.BACK_RIGHT)<0,
-            "position hold drives back toward anchor");
-        od.pose=new Pose2D(DistanceUnit.INCH,100,84,AngleUnit.DEGREES,0);
-        // Speed ready (3300 RPM == 1540 ticks/s) -> gate opens, brief reverse, then feed.
-        fly.velocity=-3300*28/60.0;
-        ShotTransit.FiringState state=ShotTransit.FiringState.WAITING;
-        for(int i=0;i<40&&state==ShotTransit.FiringState.WAITING;i++){t+=.02;tick(op,t);state=assist.getFiringState();}
-        check(state==ShotTransit.FiringState.REVERSING,"gate opens into brief reverse: "+state);
-        close(power(hw,NameConstants.TRANSIT),-.4,"feed reverse power");
-        close(servo(hw,NameConstants.BLOCKER),.55,"gate open");
-        t+=.12;tick(op,t);
-        check(assist.getFiringState()==ShotTransit.FiringState.FEEDING&&assist.canFire(),"feeding after reverse time");
-        close(power(hw,NameConstants.TRANSIT),1,"transit feed power");
-        close(power(hw,NameConstants.INTAKE),1,"intake shot feed power");
-        // Feeding continues until explicitly cancelled even if speed or aim degrade.
-        fly.velocity=0;od.pose=new Pose2D(DistanceUnit.INCH,100,84,AngleUnit.DEGREES,20);
-        for(int i=0;i<10;i++){t+=.02;tick(op,t);}
-        check(assist.getFiringState()==ShotTransit.FiringState.FEEDING,"feed continues once committed");
-        check(!controls.getAutoAim().isLocked(),"aim unlocks beyond hysteresis");
-        // Invalid target (Pinpoint not READY) cancels the committed feed.
-        od.status=GoBildaPinpointDriver.DeviceStatus.CALIBRATING;t+=.02;tick(op,t);
-        check(assist.getFiringState()==ShotTransit.FiringState.WAITING,"invalid target cancels feed");
-        close(power(hw,NameConstants.TRANSIT),0,"transit stops on invalid target");
-        close(servo(hw,NameConstants.BLOCKER),.38,"gate closes on invalid target");
-        close(((ShooterSubsystem)field(op,"shooter")).getTargetRpm(),0,"flywheel stops on invalid target target");
-        t+=.02;tick(op,t);close(fly.power,0,"flywheel stops on invalid target output");
-        od.status=GoBildaPinpointDriver.DeviceStatus.READY;
-        od.pose=new Pose2D(DistanceUnit.INCH,100,84,AngleUnit.DEGREES,0);fly.velocity=-3300*28/60.0;
-        for(int i=0;i<40&&assist.getFiringState()!=ShotTransit.FiringState.FEEDING;i++){t+=.02;tick(op,t);}
-        check(assist.getFiringState()==ShotTransit.FiringState.FEEDING,"re-acquires feed");
-        // Jam (KQ LT) reverses intake+transit, stops flywheel and cancels the feed.
-        op.gamepad1.left_trigger=1;t+=.02;tick(op,t);
-        check(assist.getFiringState()==ShotTransit.FiringState.WAITING,"jam cancels feed");
-        close(power(hw,NameConstants.TRANSIT),-1,"jam transit reverse");
-        close(power(hw,NameConstants.INTAKE),-1,"jam intake reverse");
-        close(servo(hw,NameConstants.BLOCKER),.38,"jam closes gate");
-        close(((ShooterSubsystem)field(op,"shooter")).getTargetRpm(),0,"jam stops flywheel target");
-        t+=.02;tick(op,t);close(fly.power,0,"jam stops flywheel output");
-        op.gamepad1.left_trigger=0;
-        for(int i=0;i<40&&assist.getFiringState()!=ShotTransit.FiringState.FEEDING;i++){t+=.02;tick(op,t);}
-        check(assist.getFiringState()==ShotTransit.FiringState.FEEDING,"feeds again after jam release");
-        close(servo(hw,NameConstants.TURRET_LEFT),.5,"turret stays fixed while shooting");
-        // Releasing B stops everything.
-        op.gamepad1.b=false;t+=.02;tick(op,t);
+    static void manualControlsAndOwnership() throws Exception {
+        AutoEndPose.clear();
+        scheduler().reset();
+        Teleop op = new Teleop();
+        HardwareMap hw = op.hardwareMap = BehaviorReplay.hardware(true);
+        op.init();
+        op.start();
+        tick(op, 0);
+        Gamepad pad = op.gamepad1;
+        TeleopControlCommand controls = (TeleopControlCommand) field(op, "controls");
+        ShooterSubsystem shooter = (ShooterSubsystem) field(op, "shooter");
+        GoBildaPinpointDriver od = hw.get(GoBildaPinpointDriver.class, NameConstants.PINPOINT);
+        DcMotorEx fly = hw.get(DcMotorEx.class, NameConstants.SHOOTER_0);
+        check(controls.getRequirements().size() == 6, "parent owns all six subsystems");
+
+        pad.a = pad.x = pad.y = pad.left_bumper = pad.right_bumper = true;
+        pad.dpad_up = pad.dpad_right = pad.left_stick_button = true;
+        int pinpointResets = od.resets;
+        int imuResets = hw.get(IMU.class, NameConstants.IMU).resets;
+        double time = .02;
+        tick(op, time);
         allMotorsStopped(hw);
-        close(servo(hw,NameConstants.BLOCKER),.38,"release closes gate");
-        check(assist.getFiringState()==ShotTransit.FiringState.IDLE,"release returns to IDLE");
-        // Left-stick reset cancels a held B; held B does not resume.
-        op.gamepad1.b=true;t+=.02;tick(op,t);
-        op.gamepad1.left_stick_button=true;t+=.02;tick(op,t);allMotorsStopped(hw);
-        t+=.02;tick(op,t);close(fly.power,0,"held B must not resume after left-stick reset");
-        op.gamepad1.b=false;op.gamepad1.left_stick_button=false;t+=.02;tick(op,t);
-        check(op.hardwareMap.get(DcMotorEx.class,NameConstants.FRONT_LEFT).direction==DcMotor.Direction.REVERSE,
-            "jrc left motor direction");
-        check(op.hardwareMap.get(DcMotorEx.class,NameConstants.FRONT_RIGHT).direction==DcMotor.Direction.FORWARD,
-            "jrc right motor direction");
-        // A conflicting command must cancel the WHOLE composition, including the B child.
-        op.gamepad1.b=true;t+=.02;tick(op,t);
-        DriveSubsystem drive=(DriveSubsystem)field(op,"drive");
-        Command takeover=new RunCommand(()->{},drive);
-        scheduler().schedule(takeover);
-        check(!scheduler().isScheduled(controls),"resource conflict cancels parent");
-        allMotorsStopped(op.hardwareMap);
-        close(servo(hw,NameConstants.BLOCKER),.38,"cancel closes blocker");
-        check(!op.gamepad1.rumbling,"cancel stops rumble");
-        scheduler().cancelAll();scheduler().reset();com.qualcomm.robotcore.util.ElapsedTime.now=0;
+        check(od.resets == pinpointResets && hw.get(IMU.class, NameConstants.IMU).resets == imuResets,
+                "stick click leaves localization alone");
+        close(servo(hw, NameConstants.BLOCKER), BlockerSubsystem.CLOSED_POSITION, "buttons cannot open blocker");
+        close(servo(hw, NameConstants.TURRET_LEFT), .5, "buttons cannot move left turret");
+        close(servo(hw, NameConstants.TURRET_RIGHT), .5, "buttons cannot move right turret");
+
+        pad.dpad_down = true;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.INTAKE), -1, "D-pad down ejects at full power");
+        close(power(hw, NameConstants.TRANSIT), 0, "eject leaves transit stopped");
+        close(fly.power, 0, "eject alone leaves flywheel stopped");
+        pad.dpad_down = false;
+        pad.left_trigger = .25f;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.INTAKE), 1, "LT alone runs intake at full power");
+        close(fly.power, 0, "LT alone leaves flywheel stopped");
+        pad.left_trigger = 0;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.INTAKE), 0, "release LT stops intake");
+
+        pad.left_stick_y = -.5f;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.FRONT_LEFT), .5, "left stick forward");
+        close(power(hw, NameConstants.FRONT_RIGHT), .5, "left stick forward");
+        pad.left_stick_y = 0;
+        pad.right_stick_x = .5f;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.FRONT_LEFT), .5, "right stick turns left side");
+        close(power(hw, NameConstants.FRONT_RIGHT), -.5, "right stick turns right side");
+        pad.right_stick_x = 0;
+
+        od.pose = new Pose2D(DistanceUnit.INCH, 100, 84, AngleUnit.DEGREES, 20);
+        pad.b = true;
+        tick(op, time += .02);
+        check(controls.isAiming(), "B enables aim");
+        check(power(hw, NameConstants.FRONT_LEFT) * power(hw, NameConstants.FRONT_RIGHT) < 0,
+                "B rotates chassis");
+        close(fly.power, 0, "B alone cannot spin flywheel");
+
+        od.pose = new Pose2D(DistanceUnit.INCH, 100, 84, AngleUnit.DEGREES, 0);
+        pad.left_trigger = .25f;
+        pad.right_trigger = .25f;
+        double rpm = ShooterSubsystem.SINGLE_BALL_RPM;
+        fly.velocity = -rpm * 28.0 / 60.0;
+        for (int i = 0; i < 30; i++) {
+            tick(op, time += .02);
+            close(power(hw, NameConstants.INTAKE), 1, "LT runs intake at full power during aim");
+            close(power(hw, NameConstants.TRANSIT), 0, "B and both triggers cannot run transit");
+            close(servo(hw, NameConstants.BLOCKER), BlockerSubsystem.CLOSED_POSITION,
+                    "B and both triggers cannot open blocker");
+        }
+        close(shooter.getTargetRpm(), rpm, "RT independently enables flywheel");
+        check(shooter.isReady() && controls.getAutoAim().isLocked(), "flywheel and aim both ready");
+        pad.dpad_down = true;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.INTAKE), -1, "eject overrides both triggers");
+        close(power(hw, NameConstants.TRANSIT), 0, "eject with RT leaves transit stopped");
+        close(servo(hw, NameConstants.BLOCKER), BlockerSubsystem.CLOSED_POSITION, "eject leaves blocker closed");
+        close(shooter.getTargetRpm(), rpm, "RT still commands flywheel during eject");
+        pad.dpad_down = false;
+        pad.left_trigger = 0;
+        tick(op, time += .02);
+        close(power(hw, NameConstants.INTAKE), 1, "release eject restores full intake on RT");
+        pad.b = false;
+        pad.right_stick_x = .5f;
+        tick(op, time += .02);
+        check(!controls.isAiming(), "release B exits aim");
+        close(power(hw, NameConstants.FRONT_LEFT), .5, "release B restores right stick");
+        close(shooter.getTargetRpm(), rpm, "RT remains active after release B");
+        pad.right_trigger = 0;
+        tick(op, time += .02);
+        close(fly.power, 0, "release RT stops flywheel immediately");
+        close(power(hw, NameConstants.INTAKE), 0, "release RT stops intake when LT is up");
+
+        DriveSubsystem drive = (DriveSubsystem) field(op, "drive");
+        scheduler().schedule(new RunCommand(() -> {}, drive));
+        check(!scheduler().isScheduled(controls), "resource conflict cancels parent");
+        allMotorsStopped(hw);
+        close(servo(hw, NameConstants.BLOCKER), BlockerSubsystem.CLOSED_POSITION, "cancel closes blocker");
+        scheduler().reset();
+        com.qualcomm.robotcore.util.ElapsedTime.now = 0;
     }
 
     /** Ported Overtune AutoShootCommand: speed-gated feed, feed duration, timeout, invalid localization. */
@@ -335,8 +342,8 @@ public final class LifecycleCheck {
     }
 
     public static void main(String[] args)throws Exception {
-        shootingAndOwnership();pathSequence();timedDrive();leafCommands();tunerStop();
+        manualControlsAndOwnership();pathSequence();timedDrive();leafCommands();tunerStop();
         poseHandoff();fixedTurretChassisAim();autoShoot();
-        System.out.println("PASS: resource arbitration, OT shoot-assist gate/feed/jam/release, AutoShoot duration/timeout, reset, pose handoff, cancellation, path handoff/hold, demo timing, tuner STOP, fixed turret");
+        System.out.println("PASS: resource arbitration, manual drive/aim/triggers with feed disabled, AutoShoot duration/timeout, reset, pose handoff, cancellation, path handoff/hold, demo timing, tuner STOP, fixed turret");
     }
 }

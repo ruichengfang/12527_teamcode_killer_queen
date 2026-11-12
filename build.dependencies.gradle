@@ -19,5 +19,7 @@ dependencies {
     implementation 'org.firstinspires.ftc:Vision:12.0.0'
     implementation 'androidx.appcompat:appcompat:1.2.0'
     implementation 'com.pedropathing:revhub:3.0.2'
+    // Pedro AutoTune web UI (http://192.168.43.1:10158), same as Overtune/Spinup.
+    implementation 'com.pedropathing:tuning:1.0.1'
 }
 

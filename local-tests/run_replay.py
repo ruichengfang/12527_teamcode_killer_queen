@@ -310,7 +310,7 @@ def main():
                 if rel.parts[0] == 'pedro' or (version == 'baseline' and rel.parts[0] == 'autopath'):
                     continue
                 # DashTuner was intentionally replaced by Spinup's DashboardTuner (not equivalence-tested).
-                if str(rel) == 'tests/DashTuner.java':
+                if str(rel) in ('tests/DashTuner.java', 'tests/ShooterAutoTune.java'):
                     continue
                 content = (run(['git', 'show', f'{BASELINE}:{name}'], cwd=ROOT,
                                capture_output=True).stdout if version == 'baseline'

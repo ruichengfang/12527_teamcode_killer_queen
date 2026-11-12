@@ -8,6 +8,7 @@ import com.pedropathing.api.PoseFactory;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import org.firstinspires.ftc.teamcode.AutoEndPose;
@@ -23,6 +24,7 @@ public class AutoFormal extends LinearOpMode {
     private Follower follower;
     private boolean autoStarted;
     private PathFollowerSubsystem drive;
+    private GoBildaPinpointDriver pinpoint;
     private final PoseFactory poseFactory = PoseFactory.degrees();
 
     private final Pose start = poseFactory.of(54.2726, 7.9672, 270);
@@ -62,18 +64,45 @@ public class AutoFormal extends LinearOpMode {
     public void runOpMode() {
         AutoEndPose.clear();
         CommandScheduler.getInstance().reset();
+        if (Constants.foresightConfig == null) {
+            telemetry.addLine("Run AutoTune > Foresight Tuner and export its config before running.");
+            telemetry.update();
+            waitForStart();
+            return;
+        }
         follower = Constants.create(hardwareMap);
         drive = new PathFollowerSubsystem(follower, this::saveCurrentPose);
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConfig.name.get());
         try {
             follower.setPose(start);
-            follower.update();
-
+            // OT: keep the follower/localizer updating during INIT.
+            while (opModeInInit() && !isStopRequested()) {
+                follower.update();
+                telemetry.addData("Pinpoint", pinpoint.getDeviceStatus());
+                telemetry.update();
+                idle();
+            }
             waitForStart();
             if (isStopRequested()) return;
+            if (!localizationReady()) {
+                telemetry.addLine("Pinpoint is not READY; autonomous stopped.");
+                telemetry.update();
+                return;
+            }
+            follower.setPose(start);
             autoStarted = true;
-            CommandScheduler.getInstance().schedule(autoRoutine());
+            Command routine = autoRoutine();
+            CommandScheduler.getInstance().schedule(routine);
 
             while (opModeIsActive()) {
+                // OT: abort the routine if Pinpoint loses READY.
+                if (!localizationReady()) {
+                    CommandScheduler.getInstance().cancel(routine);
+                    drive.stop();
+                    telemetry.addLine("Pinpoint lost READY status; autonomous stopped.");
+                    telemetry.update();
+                    break;
+                }
                 CommandScheduler.getInstance().run();
                 telemetry.addData("x (in)", follower.pose().x());
                 telemetry.addData("y (in)", follower.pose().y());
@@ -94,6 +123,10 @@ public class AutoFormal extends LinearOpMode {
                 finally { CommandScheduler.getInstance().reset(); }
             }
         }
+    }
+
+    private boolean localizationReady() {
+        return pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY;
     }
 
     private void saveCurrentPose() {

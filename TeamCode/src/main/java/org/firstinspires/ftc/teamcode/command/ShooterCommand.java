@@ -5,23 +5,27 @@ import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
 
-/** 飞轮手动开关与每周期 PIDF 更新；联合发射期间只屏蔽手动开关。 */
+/** 扳机按住时运行飞轮，并每周期更新转速闭环。 */
 public final class ShooterCommand extends CommandBase {
     private final ShooterSubsystem shooter;
-    private final BooleanSupplier toggle;
+    private final BooleanSupplier triggerHeld;
     private final DoubleSupplier deltaSeconds;
 
-    public ShooterCommand(ShooterSubsystem shooter, BooleanSupplier toggle,
+    public ShooterCommand(ShooterSubsystem shooter, BooleanSupplier triggerHeld,
                           DoubleSupplier deltaSeconds) {
         this.shooter = shooter;
-        this.toggle = toggle;
+        this.triggerHeld = triggerHeld;
         this.deltaSeconds = deltaSeconds;
         addRequirements(shooter);
     }
 
     @Override
     public void execute() {
-        if (toggle.getAsBoolean()) shooter.toggle();
+        if (triggerHeld.getAsBoolean()) {
+            shooter.start();
+        } else {
+            shooter.stop();
+        }
         shooter.update(deltaSeconds.getAsDouble());
     }
 

@@ -17,6 +17,7 @@ public final class NameConstants {
     // 必须与 Robot Controller 配置中的实际名称一致。
     public static final String SHOOTER_0 = "shooterMotor1";
     public static final String SHOOTER_1 = "shooterMotor2";
+    public static final String SHOOTER_SERVO = "shooterServo";
 
     public static final String IMU = "imu";
     public static final String PINPOINT = "od";

@@ -5,7 +5,10 @@ import com.pedropathing.paths.Path;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.subsystem.PathFollowerSubsystem;
 
-/** 等价于 Ivy 1.1.1 PedroCommands.follow：到参数终点即完成，不额外等待误差收敛。 */
+/**
+ * OT 自动 followPath：follow 后等到 Pedro !isBusy() 才完成；超时（>0）则停车并进入下一段。
+ * 旧版（Ivy 等价）是到参数终点即换段，已改为 OT 行为。
+ */
 public final class FollowPathCommand extends CommandBase {
     private final PathFollowerSubsystem drive;
     private final Path path;
@@ -33,7 +36,7 @@ public final class FollowPathCommand extends CommandBase {
 
     @Override
     public boolean isFinished() {
-        if (drive.atParametricEnd()) return true;
+        if (!drive.isBusy()) return true;
         timedOut = timeoutMs > 0 && timer.milliseconds() >= timeoutMs;
         return timedOut;
     }

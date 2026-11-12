@@ -27,6 +27,7 @@ public class Constants {
         c.backLeftDirection.set(DcMotorSimple.Direction.REVERSE);
         c.frontRightDirection.set(DcMotorSimple.Direction.FORWARD);
         c.backRightDirection.set(DcMotorSimple.Direction.FORWARD);
+        c.manualBrakeMode.set(true); // OT drivetrainConfig
     });
 
     public static PinpointConfig localizerConfig = new PinpointConfig(c -> {
@@ -60,6 +61,15 @@ public class Constants {
         c.naturalForwardDeceleration.set(31.365307658162813);
         c.naturalStrafeDeceleration.set(62.98938045238759);
     });
+
+    /** Used by the Pedro AutoTune web UI (pedro/Tuning.java, port 10158). */
+    public static Foresight createAlgorithm() {
+        if (foresightConfig == null) {
+            throw new IllegalStateException(
+                    "Run AutoTune > Foresight Tuner, then paste its Java export into pedro/Constants.java");
+        }
+        return new Foresight(foresightConfig);
+    }
 
     public static Follower create(HardwareMap h) {
         return new Follower(new PinpointLocalizer(h, localizerConfig),
