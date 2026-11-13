@@ -6,12 +6,13 @@ import java.util.function.BooleanSupplier;
 import org.firstinspires.ftc.teamcode.shoot.ShootConstants;
 import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
 
-/** LT 切换吸入；RT 按住射击，LB 按住退球。 */
+/** intake 常态全速；LT 切换 transit 吸球，RT 射击，LB 退球。 */
 public final class IntakeCommand extends CommandBase {
+    public static final double INTAKE_IDLE_POWER = 1.0;
     private final IntakeSubsystem intake;
     private final Gamepad gamepad;
     private final BooleanSupplier blockerOpen;
-    private boolean intakeEnabled;
+    private boolean transitEnabled;
     private boolean previousLeftTrigger;
 
     public IntakeCommand(IntakeSubsystem intake, Gamepad gamepad, BooleanSupplier blockerOpen) {
@@ -23,17 +24,17 @@ public final class IntakeCommand extends CommandBase {
 
     @Override
     public void initialize() {
-        intakeEnabled = false;
+        transitEnabled = false;
         previousLeftTrigger = gamepad.left_trigger > ShootConstants.TRIGGER_THRESHOLD;
     }
 
     @Override
     public void execute() {
         boolean leftTrigger = gamepad.left_trigger > ShootConstants.TRIGGER_THRESHOLD;
-        if (leftTrigger && !previousLeftTrigger) intakeEnabled = !intakeEnabled;
+        if (leftTrigger && !previousLeftTrigger) transitEnabled = !transitEnabled;
         previousLeftTrigger = leftTrigger;
         boolean shootRequested = gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD;
-        double intakePower = 0.0;
+        double intakePower = INTAKE_IDLE_POWER;
         double transitPower = 0.0;
         if (gamepad.left_bumper && !shootRequested) {
             // 单独按住 LB 时全速退球；LB + RT 保留原有近射组合键。
@@ -42,8 +43,7 @@ public final class IntakeCommand extends CommandBase {
         } else if (gamepad.dpad_down) {
             intakePower = ShootConstants.INTAKE_JAM_POWER;
         } else {
-            if (intakeEnabled) {
-                intakePower = ShootConstants.INTAKE_ACTIVE_POWER;
+            if (transitEnabled) {
                 transitPower = ShootConstants.TRANSIT_FEED_POWER;
             }
             if (shootRequested) {
@@ -57,9 +57,9 @@ public final class IntakeCommand extends CommandBase {
 
     @Override
     public void end(boolean interrupted) {
-        intakeEnabled = false;
+        transitEnabled = false;
         intake.stop();
     }
 
-    public boolean isIntakeEnabled() { return intakeEnabled; }
+    public boolean isTransitEnabled() { return transitEnabled; }
 }

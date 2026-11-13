@@ -9,6 +9,7 @@ import org.firstinspires.ftc.teamcode.subsystem.DriveSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.ShovelSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
 /** 2026 Biobuzz 比赛手动控制入口。 */
@@ -20,6 +21,7 @@ public class Teleop extends OpMode {
     private ShooterSubsystem shooter;
     private TurretSubsystem turret;
     private BlockerSubsystem blocker;
+    private ShovelSubsystem shovel;
 
     private TeleopControlCommand controls;
 
@@ -32,11 +34,13 @@ public class Teleop extends OpMode {
         shooter = new ShooterSubsystem(hardwareMap);
         turret = new TurretSubsystem(hardwareMap, false);
         blocker = new BlockerSubsystem(hardwareMap);
+        shovel = new ShovelSubsystem(hardwareMap);
 
         controls = new TeleopControlCommand(gamepad1, gamepad2, this::getRuntime,
-                localization, drive, intake, shooter, turret, blocker);
+                localization, drive, intake, shooter, turret, blocker, shovel);
 
         telemetry.addLine(localization.isPinpointReady() ? "Pinpoint: 已启用" : "Pinpoint: 未找到");
+        telemetry.addLine(shovel.isAvailable() ? "铲子舵机: 已连接" : "铲子舵机: 未配置 shovelServo");
         addControlHelp();
         telemetry.update();
     }
@@ -66,11 +70,12 @@ public class Teleop extends OpMode {
         telemetry.addLine("副操方向键：上/下 X ±1 in，右/左 Y ±1 in（每按一次）");
         telemetry.addLine("按住 B 用 Pinpoint 控制转向，左摇杆仍可平移");
         telemetry.addLine("主操 X：切换云台中位锁定 / 自动瞄准");
+        telemetry.addLine("主操 Y：切换铲子上 / 下");
         telemetry.addLine("START 后飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
         telemetry.addData("统一飞轮转速", "%.0f TPS", ShooterSubsystem.SHOT_TICKS_PER_SECOND);
         telemetry.addData("只按 RT 远射角度", "servo %.2f", ShooterSubsystem.SERVO_LOW);
         telemetry.addData("RB + RT 中射 / LB + RT 近射角度", "servo %.2f", ShooterSubsystem.SERVO_HIGH);
-        telemetry.addLine("LT 按一次开启吸入，再按一次关闭");
+        telemetry.addLine("intake 默认全速；LT 每按一次切换 transit 吸球");
         telemetry.addLine("单独按住 LB：intake + transit 全速退球，优先于吸入");
         telemetry.addLine("按住方向键下：仅 intake 全速吐球");
         telemetry.addLine("按住 RT 飞轮达速后自动开挡板，松开 RT 关闭；云台常态自瞄");
@@ -116,6 +121,8 @@ public class Teleop extends OpMode {
                 : !turret.hasValidAim() ? "无有效目标" : turret.isReachable() ? "在限位内" : "超出限位");
         telemetry.addData("云台估计瞄准", controls.isTurretAimed() ? "是（无位置反馈）" : "否");
         telemetry.addData("挡板", "%s (%.2f)", blocker.isOpen() ? "开" : "关", blocker.getPosition());
+        telemetry.addData("铲子", !shovel.isAvailable() ? "未配置 shovelServo"
+                : !shovel.hasTarget() ? "等待操作" : shovel.isShovelUp() ? "上" : "下");
         telemetry.addData("底盘转向", controls.isAiming() ? "Pinpoint 自瞄" : "右摇杆");
         if (controls.isAiming()) {
             telemetry.addData("瞄点有效", controls.getAimTarget().hasValidAimingTarget());
@@ -137,7 +144,7 @@ public class Teleop extends OpMode {
 
         telemetry.addData("Intake 功率", "%.2f", intake.getIntakePower());
         telemetry.addData("Transit 功率", "%.2f", intake.getTransitPower());
-        telemetry.addData("吸入开关", controls.isIntakeEnabled() ? "开" : "关");
+        telemetry.addData("Transit 吸球开关", controls.isTransitEnabled() ? "开" : "关");
 
         telemetry.update();
     }

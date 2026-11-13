@@ -13,6 +13,7 @@ public final class NameConstants {
     public static final String TURRET_LEFT = "leftServo";
     public static final String TURRET_RIGHT = "rightServo";
     public static final String BLOCKER = "blockerServo";
+    public static final String shovelServo = "shovelServo";
 
     // 必须与 Robot Controller 配置中的实际名称一致。
     public static final String SHOOTER_0 = "shooterMotor1";
