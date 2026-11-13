@@ -9,20 +9,20 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 /** 铲子舵机：Y 键在上下位置之间切换。 */
 @Config
 public final class ShovelSubsystem extends SubsystemBase {
-    // 占位参数，实车测量后修改；两个位置相同，首次切换前不发送舵机位置。
-    public static double shovelUpPosition = 0.5;
-    public static double shovelDownPosition = 0.5;
+    // 首次切换前不发送舵机位置。
+    public static double shovelUpPosition = 0.55;
+    public static double shovelDownPosition = 0.15;
 
-    private final Servo shovelServo;
+    private final Servo flowerServo;
     private boolean hasTarget;
     private boolean shovelUp;
 
     public ShovelSubsystem(HardwareMap hardwareMap) {
-        shovelServo = hardwareMap.tryGet(Servo.class, NameConstants.shovelServo);
+        flowerServo = hardwareMap.tryGet(Servo.class, NameConstants.flowerServo);
     }
 
     public void toggle() {
-        if (shovelServo == null) return;
+        if (flowerServo == null) return;
         shovelUp = !shovelUp;
         hasTarget = true;
         writeTarget();
@@ -34,10 +34,10 @@ public final class ShovelSubsystem extends SubsystemBase {
 
     private void writeTarget() {
         double target = shovelUp ? shovelUpPosition : shovelDownPosition;
-        if (Double.isFinite(target)) shovelServo.setPosition(Math.max(0.0, Math.min(1.0, target)));
+        if (Double.isFinite(target)) flowerServo.setPosition(Math.max(0.0, Math.min(1.0, target)));
     }
 
-    public boolean isAvailable() { return shovelServo != null; }
+    public boolean isAvailable() { return flowerServo != null; }
     public boolean hasTarget() { return hasTarget; }
     public boolean isShovelUp() { return shovelUp; }
 }

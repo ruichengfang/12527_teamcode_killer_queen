@@ -19,11 +19,11 @@ STUBS = {
         public void setPosition(double p) { position=p; writes++; } }''',
     'com/qualcomm/robotcore/hardware/HardwareMap.java': '''
       package com.qualcomm.robotcore.hardware;
-      public class HardwareMap { public Servo servo;
-        public <T> T tryGet(Class<T> type,String name) { return type.cast(servo); } }''',
+      public class HardwareMap { public Servo servo; public String requestedName;
+        public <T> T tryGet(Class<T> type,String name) { requestedName=name; return type.cast(servo); } }''',
     'org/firstinspires/ftc/teamcode/NameConstants.java': '''
       package org.firstinspires.ftc.teamcode;
-      public class NameConstants { public static final String shovelServo="shovelServo", PITCH_SERVO="pitchServo"; }''',
+      public class NameConstants { public static final String flowerServo="flowerServo", PITCH_SERVO="pitchServo"; }''',
     'com/arcrobotics/ftclib/command/CommandBase.java': '''
       package com.arcrobotics.ftclib.command;
       public class CommandBase {
@@ -89,6 +89,8 @@ STUBS = {
         public static void main(String[] args) {
           HardwareMap h=new HardwareMap(); h.servo=new Servo();
           ShovelSubsystem shovel=new ShovelSubsystem(h);
+          check("flowerServo".equals(h.requestedName),"flower servo configuration name");
+          check(ShovelSubsystem.shovelDownPosition==.15 && ShovelSubsystem.shovelUpPosition==.55,"configured positions");
           shovel.periodic(); check(h.servo.writes==0 && !shovel.hasTarget(),"no initial movement");
           ShovelSubsystem.shovelUpPosition=.7; ShovelSubsystem.shovelDownPosition=.3;
           shovel.toggle(); check(shovel.isShovelUp() && h.servo.position==.7,"first press up");

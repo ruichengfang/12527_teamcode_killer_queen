@@ -15,7 +15,7 @@ import org.firstinspires.ftc.teamcode.subsystem.PitchSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
 /** 2026 Biobuzz 比赛手动控制入口。 */
-@TeleOp(name = "Solo", group = "Competition")
+@TeleOp(name = "Killer Queen Final Program", group = "Competition")
 @Config
 public class Teleop extends OpMode {
     public static double wallShotKp = 0.000360000;
@@ -48,7 +48,7 @@ public class Teleop extends OpMode {
                 localization, drive, intake, shooter, turret, blocker, shovel, pitch);
 
         telemetry.addLine(localization.isPinpointReady() ? "Pinpoint: 已启用" : "Pinpoint: 未找到");
-        telemetry.addLine(shovel.isAvailable() ? "铲子舵机: 已连接" : "铲子舵机: 未配置 shovelServo");
+        telemetry.addLine(shovel.isAvailable() ? "铲子舵机: 已连接" : "铲子舵机: 未配置 flowerServo");
         telemetry.addLine(pitch.isAvailable() ? "俯仰舵机: 已连接" : "俯仰舵机: 未配置 pitchServo");
         addControlHelp();
         telemetry.update();
@@ -131,7 +131,7 @@ public class Teleop extends OpMode {
                 : !turret.hasValidAim() ? "无有效目标" : turret.isReachable() ? "在限位内" : "超出限位");
         telemetry.addData("云台估计瞄准", controls.isTurretAimed() ? "是（无位置反馈）" : "否");
         telemetry.addData("挡板", "%s (%.2f)", blocker.isOpen() ? "开" : "关", blocker.getPosition());
-        telemetry.addData("铲子", !shovel.isAvailable() ? "未配置 shovelServo"
+        telemetry.addData("铲子", !shovel.isAvailable() ? "未配置 flowerServo"
                 : !shovel.hasTarget() ? "等待操作" : shovel.isShovelUp() ? "上" : "下");
         if (pitch.isAvailable()) telemetry.addData("俯仰舵机位置", "%.2f", pitch.getPosition());
         else telemetry.addLine("俯仰舵机未配置 pitchServo");
