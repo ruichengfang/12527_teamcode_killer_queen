@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import java.util.function.DoubleSupplier;
 
 import org.firstinspires.ftc.teamcode.NameConstants;
 import org.firstinspires.ftc.teamcode.tuning.FlywheelTuning;
@@ -80,6 +81,7 @@ public class ShooterSubsystem extends SubsystemBase {
     private final DcMotorEx shooter0;
     private final DcMotorEx shooter1;
     private final Servo shooterServo;
+    private final DoubleSupplier proportionalGain, integralGain, derivativeGain;
 
     private double targetRpm;
     private double filteredRpm;
@@ -94,6 +96,15 @@ public class ShooterSubsystem extends SubsystemBase {
     private final ElapsedTime withinToleranceTimer = new ElapsedTime();
 
     public ShooterSubsystem(HardwareMap hardwareMap) {
+        this(hardwareMap, () -> KP, () -> KI, () -> KD);
+    }
+
+    /** 允许手动模式使用独立 PID，自动模式继续使用默认参数。 */
+    public ShooterSubsystem(HardwareMap hardwareMap, DoubleSupplier proportionalGain,
+                            DoubleSupplier integralGain, DoubleSupplier derivativeGain) {
+        this.proportionalGain = proportionalGain;
+        this.integralGain = integralGain;
+        this.derivativeGain = derivativeGain;
         shooter0 = hardwareMap.get(DcMotorEx.class, NameConstants.SHOOTER_0);
         shooter1 = hardwareMap.get(DcMotorEx.class, NameConstants.SHOOTER_1);
 
@@ -155,7 +166,7 @@ public class ShooterSubsystem extends SubsystemBase {
     }
 
     /** OT Shooter.setTargetVelocity：仅在目标首次设置或累计变化超阈值时重新计时达速。 */
-    private void setTargetRpm(double rpm) {
+    public void setTargetRpm(double rpm) {
         if (!Double.isFinite(rpm) || rpm <= 0.0) {
             targetRpm = 0.0;
             if (controller != null) controller.reset();
@@ -180,9 +191,12 @@ public class ShooterSubsystem extends SubsystemBase {
             if (!Double.isFinite(rawRpm) || !Double.isFinite(deltaSeconds) || deltaSeconds <= 0)
                 throw new IllegalArgumentException("Invalid encoder speed or timestep");
             filteredRpm = FlywheelTuning.filter(filteredRpm, rawRpm, deltaSeconds);
-            if (controller == null || controller.p != KP || controller.i != KI || controller.d != KD
+            double kp = proportionalGain.getAsDouble();
+            double ki = integralGain.getAsDouble();
+            double kd = derivativeGain.getAsDouble();
+            if (controller == null || controller.p != kp || controller.i != ki || controller.d != kd
                     || controller.ks != KS || controller.kv != KF) {
-                controller = new FlywheelTuning.Controller(KP, KI, KD, KS, KF);
+                controller = new FlywheelTuning.Controller(kp, ki, kd, KS, KF);
                 resetReadyState();
             }
             if (targetRpm <= 0.0) {
@@ -257,7 +271,7 @@ public class ShooterSubsystem extends SubsystemBase {
         return ready;
     }
 
-    /** KQ 没有俯仰舵机，俯仰条件恒满足。 */
+    /** 俯仰舵机没有位置反馈，当前不将俯仰位置作为射击放行条件。 */
     public boolean isPitchReady() {
         return true;
     }

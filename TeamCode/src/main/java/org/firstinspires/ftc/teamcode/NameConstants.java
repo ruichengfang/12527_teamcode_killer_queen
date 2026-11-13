@@ -19,6 +19,7 @@ public final class NameConstants {
     public static final String SHOOTER_0 = "shooterMotor1";
     public static final String SHOOTER_1 = "shooterMotor2";
     public static final String SHOOTER_SERVO = "shooterServo";
+    public static final String PITCH_SERVO = "pitchServo";
 
     public static final String IMU = "imu";
     public static final String PINPOINT = "od";

@@ -23,7 +23,7 @@ STUBS = {
         public <T> T tryGet(Class<T> type,String name) { return type.cast(servo); } }''',
     'org/firstinspires/ftc/teamcode/NameConstants.java': '''
       package org.firstinspires.ftc.teamcode;
-      public class NameConstants { public static final String shovelServo="shovelServo"; }''',
+      public class NameConstants { public static final String shovelServo="shovelServo", PITCH_SERVO="pitchServo"; }''',
     'com/arcrobotics/ftclib/command/CommandBase.java': '''
       package com.arcrobotics.ftclib.command;
       public class CommandBase {
@@ -43,7 +43,9 @@ STUBS = {
       }''',
     'org/firstinspires/ftc/teamcode/subsystem/ShooterSubsystem.java': '''
       package org.firstinspires.ftc.teamcode.subsystem;
-      public class ShooterSubsystem { public static double SHOT_TRANSIT_POWER=.8; }''',
+      public class ShooterSubsystem { public static double SHOT_TRANSIT_POWER=.8; public double target;
+        public double getShotRpm(){return 3385.714285714286;} public void setTargetRpm(double rpm){target=rpm;}
+        public void stop(){target=0;} public void update(double dt){} }''',
     'org/firstinspires/ftc/teamcode/subsystem/IntakeSubsystem.java': '''
       package org.firstinspires.ftc.teamcode.subsystem;
       public class IntakeSubsystem {
@@ -63,21 +65,20 @@ STUBS = {
         public static void main(String[] args) {
           Gamepad g=new Gamepad(); IntakeSubsystem i=new IntakeSubsystem(); boolean[] gate={false};
           IntakeCommand cmd=new IntakeCommand(i,g,()->gate[0]);
-          g.left_trigger=1; cmd.initialize(); cmd.execute(); output(i,1,0,"held at start runs intake only");
-          g.left_trigger=0; cmd.execute(); g.left_trigger=1; cmd.execute(); output(i,1,1,"toggle on");
-          cmd.execute(); output(i,1,1,"hold does not repeat");
-          g.left_trigger=0; cmd.execute(); output(i,1,1,"release keeps intake and transit on");
-          g.left_bumper=true; cmd.execute(); output(i,-1,-1,"reverse overrides");
-          g.left_bumper=false; cmd.execute(); output(i,1,1,"resume after reverse");
-          g.right_trigger=1; cmd.execute(); output(i,1,0,"shoot waits for blocker");
+          cmd.initialize(); cmd.execute(); output(i,.7,0,"idle intake");
+          g.left_trigger=1; cmd.execute(); output(i,1,1,"LT feeds both");
+          g.left_trigger=0; cmd.execute(); output(i,.7,0,"release LT stops transit");
+          g.left_bumper=true; cmd.execute(); output(i,-1,0,"LB reverses intake only");
+          g.left_bumper=false; cmd.execute(); output(i,.7,0,"resume idle after reverse");
+          g.right_trigger=1; cmd.execute(); output(i,0,0,"shoot waits for blocker");
           gate[0]=true; cmd.execute(); output(i,1,.8,"shoot after blocker");
-          g.right_trigger=0; cmd.execute(); output(i,1,1,"resume intake and transit after shooting");
-          g.left_trigger=1; cmd.execute(); output(i,1,0,"toggle transit off with intake running");
-          g.left_trigger=0; cmd.execute(); output(i,1,0,"full intake with transit off");
-          g.left_trigger=1; cmd.execute(); output(i,1,1,"transit on again");
+          g.left_bumper=true; cmd.execute(); output(i,1,.8,"shoot overrides reverse");
+          g.left_bumper=false; g.right_trigger=0; cmd.execute(); output(i,.7,0,"resume idle after shooting");
+          g.dpad_down=true; cmd.execute(); output(i,-1,0,"dpad down reverses intake only");
+          g.dpad_down=false; g.left_trigger=1; cmd.execute(); output(i,1,1,"LT feeds both again");
           cmd.end(true); output(i,0,0,"interruption stops");
-          check(!cmd.isTransitEnabled(),"interruption clears transit latch");
-          System.out.println("PASS: full intake, transit toggle, overrides and stop");
+          check(!cmd.isIntakeEnabled(),"interruption clears intake request");
+          System.out.println("PASS: intake, transit, shot gating and stop");
         }
       }''',
     'ShovelCheck.java': '''
@@ -99,6 +100,30 @@ STUBS = {
           System.out.println("PASS: shovel toggle, configuration and missing device");
         }
       }''',
+    'PitchAndShooterCheck.java': '''
+      import com.qualcomm.robotcore.hardware.*;
+      import org.firstinspires.ftc.teamcode.subsystem.*;
+      import org.firstinspires.ftc.teamcode.command.ShooterCommand;
+      public class PitchAndShooterCheck {
+        static void near(double a,double b,String m){if(Math.abs(a-b)>1e-8)throw new AssertionError(m+": "+a);}
+        public static void main(String[] args) {
+          HardwareMap h=new HardwareMap(); h.servo=new Servo();
+          PitchSubsystem pitch=new PitchSubsystem(h); near(h.servo.position,.52,"initial pitch");
+          pitch.adjust(-1); near(h.servo.position,.51,"LB pitch");
+          pitch.adjust(1); near(h.servo.position,.52,"RB pitch");
+          PitchSubsystem absent=new PitchSubsystem(new HardwareMap()); absent.adjust(1);
+          if(absent.isAvailable()) throw new AssertionError("missing pitch");
+          ShooterSubsystem shooter=new ShooterSubsystem(); boolean[] wall={false}, rt={false};
+          ShooterCommand cmd=new ShooterCommand(shooter,()->wall[0],()->rt[0],()->.02);
+          cmd.execute(); near(shooter.target,3385.714285714286,"auto aim speed");
+          wall[0]=true; cmd.execute(); near(shooter.target,2000,"wall standby");
+          rt[0]=true; cmd.execute(); near(shooter.target,3450,"wall shot");
+          rt[0]=false; cmd.execute(); near(shooter.target,2000,"release returns standby");
+          wall[0]=false; cmd.execute(); near(shooter.target,3385.714285714286,"restore aim speed");
+          cmd.end(true); near(shooter.target,0,"stop flywheel");
+          System.out.println("PASS: pitch adjustments and shooter mode targets");
+        }
+      }''',
 }
 
 with tempfile.TemporaryDirectory(prefix='intake-toggle-') as temp:
@@ -113,6 +138,10 @@ with tempfile.TemporaryDirectory(prefix='intake-toggle-') as temp:
     target = root / 'org/firstinspires/ftc/teamcode/subsystem/ShovelSubsystem.java'
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(JAVA / 'subsystem/ShovelSubsystem.java', target)
+    for name in ('subsystem/PitchSubsystem.java', 'command/ShooterCommand.java'):
+        target = root / 'org/firstinspires/ftc/teamcode' / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(JAVA / name, target)
     java_home = Path(os.environ.get('JAVA_HOME', ''))
     javac = str(java_home / 'bin/javac') if (java_home / 'bin/javac').exists() else 'javac'
     java = str(java_home / 'bin/java') if (java_home / 'bin/java').exists() else 'java'
@@ -120,3 +149,4 @@ with tempfile.TemporaryDirectory(prefix='intake-toggle-') as temp:
                     *map(str, root.rglob('*.java'))], check=True)
     subprocess.run([java, '-cp', str(root), 'IntakeToggleCheck'], check=True)
     subprocess.run([java, '-cp', str(root), 'ShovelCheck'], check=True)
+    subprocess.run([java, '-cp', str(root), 'PitchAndShooterCheck'], check=True)

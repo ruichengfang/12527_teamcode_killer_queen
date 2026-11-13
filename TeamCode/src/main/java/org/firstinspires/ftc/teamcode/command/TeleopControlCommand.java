@@ -16,6 +16,7 @@ import org.firstinspires.ftc.teamcode.subsystem.IntakeSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.ShovelSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.PitchSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
 /** 双摇杆驾驶、B 底盘自瞄、飞轮常转、RT 达速开挡板并送料。 */
@@ -31,6 +32,7 @@ public final class TeleopControlCommand extends CommandBase {
     private final BlockerSubsystem blocker;
     private final ShooterSubsystem shooter;
     private final ShovelSubsystem shovel;
+    private final PitchSubsystem pitch;
     private final DriveCommand driveCommand;
     private final ShooterCommand shooterCommand;
     private final IntakeCommand intakeCommand;
@@ -44,6 +46,7 @@ public final class TeleopControlCommand extends CommandBase {
     private boolean previousB;
     private boolean previousX;
     private boolean previousY;
+    private boolean previousOperatorLb, previousOperatorRb;
     private boolean turretCentered;
     private boolean previousLeftStickButton;
     private boolean previousOptions;
@@ -53,7 +56,7 @@ public final class TeleopControlCommand extends CommandBase {
     public TeleopControlCommand(Gamepad gamepad, Gamepad operatorGamepad, DoubleSupplier time,
             LocalizationSubsystem localization, DriveSubsystem drive,
             IntakeSubsystem intake, ShooterSubsystem shooter,
-            TurretSubsystem turret, BlockerSubsystem blocker, ShovelSubsystem shovel) {
+            TurretSubsystem turret, BlockerSubsystem blocker, ShovelSubsystem shovel, PitchSubsystem pitch) {
         this.gamepad = gamepad;
         this.operatorGamepad = operatorGamepad;
         this.time = time;
@@ -62,16 +65,18 @@ public final class TeleopControlCommand extends CommandBase {
         this.blocker = blocker;
         this.shooter = shooter;
         this.shovel = shovel;
+        this.pitch = pitch;
         driveCommand = new DriveCommand(drive, localization,
                 () -> -gamepad.left_stick_y, () -> gamepad.left_stick_x,
                 () -> gamepad.right_stick_x);
-        shooterCommand = new ShooterCommand(shooter, () -> true, () -> deltaSeconds);
+        shooterCommand = new ShooterCommand(shooter, () -> turretCentered,
+                () -> gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD, () -> deltaSeconds);
         intakeCommand = new IntakeCommand(intake, gamepad, () -> blocker.isOpen()
                 && blockerOpenTimer.seconds() >= ShooterSubsystem.TRANSIT_DELAY_SECONDS);
         aimTarget = new PinpointAimTarget(localization);
         autoAim = new AutoAimController();
         aimCommand = new ChassisAimCommand(drive, localization, aimTarget, autoAim, gamepad);
-        addRequirements(localization, turret, blocker, shovel);
+        addRequirements(localization, turret, blocker, shovel, pitch);
         for (Command child : new Command[] {driveCommand, shooterCommand, intakeCommand, aimCommand}) {
             addRequirements(child.getRequirements().toArray(new Subsystem[0]));
         }
@@ -83,6 +88,8 @@ public final class TeleopControlCommand extends CommandBase {
         previousB = gamepad.b;
         previousX = gamepad.x;
         previousY = gamepad.y;
+        previousOperatorLb = operatorGamepad.left_bumper;
+        previousOperatorRb = operatorGamepad.right_bumper;
         turretCentered = false;
         previousLeftStickButton = gamepad.left_stick_button;
         previousOptions = gamepad.options;
@@ -125,10 +132,17 @@ public final class TeleopControlCommand extends CommandBase {
         if (gamepad.x && !previousX) {
             turretCentered = !turretCentered;
             if (turretCentered) turret.setAimMode(false, false);
+            blocker.setOpen(false); // 切换转速时重新等待达速。
         }
         previousX = gamepad.x;
         if (gamepad.y && !previousY) shovel.toggle();
         previousY = gamepad.y;
+        boolean pitchDown = operatorGamepad.left_bumper;
+        boolean pitchUp = operatorGamepad.right_bumper;
+        if (pitchDown && !previousOperatorLb && !pitchUp) pitch.adjust(-1);
+        if (pitchUp && !previousOperatorRb && !pitchDown) pitch.adjust(1);
+        previousOperatorLb = pitchDown;
+        previousOperatorRb = pitchUp;
         if (!turretCentered && !turret.isAimMode() && localization.isFieldPoseValid()) {
             turret.setAimMode(true, true);
         }
@@ -140,7 +154,10 @@ public final class TeleopControlCommand extends CommandBase {
         previousLeftStickButton = gamepad.left_stick_button;
         // 射击档位：按住 RT 时，LB+RT = 近射，RB+RT = 中射，只按 RT = 远射（两个都按时近射优先）。
         // 松开 RT 时保持上一次的档位（舵机不动）。
-        if (gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD) {
+        if (turretCentered) {
+            if (shooter.getShotMode() != ShooterSubsystem.ShotMode.NEAR)
+                shooter.setShotMode(ShooterSubsystem.ShotMode.NEAR);
+        } else if (gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD) {
             ShooterSubsystem.ShotMode mode = gamepad.left_bumper ? ShooterSubsystem.ShotMode.NEAR
                     : gamepad.right_bumper ? ShooterSubsystem.ShotMode.MID : ShooterSubsystem.ShotMode.FAR;
             if (mode != shooter.getShotMode()) shooter.setShotMode(mode);
@@ -173,7 +190,7 @@ public final class TeleopControlCommand extends CommandBase {
 
     public boolean isTurretCentered() { return turretCentered; }
 
-    public boolean isTransitEnabled() { return intakeCommand.isTransitEnabled(); }
+    public boolean isIntakeEnabled() { return intakeCommand.isIntakeEnabled(); }
 
     public String getTrimStatus() { return trimStatus; }
 

@@ -5,27 +5,28 @@ import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
 
-/** 按给定条件运行飞轮，并每周期更新转速闭环。 */
+/** 自瞄模式常转；贴墙模式在待机和射击转速之间切换。 */
 public final class ShooterCommand extends CommandBase {
+    public static final double WALL_STANDBY_RPM = 2000.0;
+    public static final double WALL_SHOT_RPM = 3450.0;
     private final ShooterSubsystem shooter;
-    private final BooleanSupplier triggerHeld;
+    private final BooleanSupplier wallMode, shotRequested;
     private final DoubleSupplier deltaSeconds;
 
-    public ShooterCommand(ShooterSubsystem shooter, BooleanSupplier triggerHeld,
+    public ShooterCommand(ShooterSubsystem shooter, BooleanSupplier wallMode, BooleanSupplier shotRequested,
                           DoubleSupplier deltaSeconds) {
         this.shooter = shooter;
-        this.triggerHeld = triggerHeld;
+        this.wallMode = wallMode;
+        this.shotRequested = shotRequested;
         this.deltaSeconds = deltaSeconds;
         addRequirements(shooter);
     }
 
     @Override
     public void execute() {
-        if (triggerHeld.getAsBoolean()) {
-            shooter.start();
-        } else {
-            shooter.stop();
-        }
+        shooter.setTargetRpm(wallMode.getAsBoolean()
+                ? (shotRequested.getAsBoolean() ? WALL_SHOT_RPM : WALL_STANDBY_RPM)
+                : shooter.getShotRpm());
         shooter.update(deltaSeconds.getAsDouble());
     }
 
