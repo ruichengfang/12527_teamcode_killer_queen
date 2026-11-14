@@ -161,6 +161,20 @@ public class LocalizationSubsystem extends SubsystemBase {
         return true;
     }
 
+    /** 副操 Y：将 X/Y 重置到当前位置最近的场地角落，保持场地航向和驾驶员前方。 */
+    public boolean resetToNearestCorner() {
+        if (!isFieldPoseValid()) return false;
+        double targetXIn = xIn <= 72.0 ? 7.5 : 136.5;
+        double targetYIn = yIn <= 72.0 ? 7.5 : 136.5;
+        pendingXIn = targetXIn;
+        pendingYIn = targetYIn;
+        pendingHeadingRad = Math.toRadians(headingDeg);
+        needSetStartPosition = true;
+        positionInitialized = false;
+        update();
+        return true;
+    }
+
     /** 在当前有效位姿基础上平移坐标，保持场地航向和驾驶员前方。 */
     public boolean adjustFieldPosition(double deltaXIn, double deltaYIn) {
         if (!isFieldPoseValid() || !Double.isFinite(deltaXIn) || !Double.isFinite(deltaYIn)

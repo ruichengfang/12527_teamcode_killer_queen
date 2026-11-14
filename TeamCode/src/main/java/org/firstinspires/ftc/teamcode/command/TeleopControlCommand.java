@@ -47,6 +47,7 @@ public final class TeleopControlCommand extends CommandBase {
     private boolean previousX;
     private boolean previousY;
     private boolean previousOperatorLb, previousOperatorRb;
+    private boolean previousOperatorY;
     private boolean turretCentered;
     private boolean previousLeftStickButton;
     private boolean previousOptions;
@@ -89,6 +90,7 @@ public final class TeleopControlCommand extends CommandBase {
         previousY = gamepad.y;
         previousOperatorLb = operatorGamepad.left_bumper;
         previousOperatorRb = operatorGamepad.right_bumper;
+        previousOperatorY = gamepad.y;
         turretCentered = false;
         previousLeftStickButton = gamepad.left_stick_button;
         previousOptions = gamepad.options;
@@ -119,10 +121,17 @@ public final class TeleopControlCommand extends CommandBase {
         boolean resetPressed = gamepad.options && !previousOptions;
         if (resetPressed) localization.resetToFieldCenter();
         previousOptions = gamepad.options;
+        boolean cornerResetPressed = gamepad.y && !previousOperatorY;
+        previousOperatorY = gamepad.y;
+        if (cornerResetPressed) {
+            boolean accepted = localization.resetToNearestCorner();
+            trimStatus = !accepted ? "未重置：定位无效" : localization.isFieldPoseValid()
+                    ? "已重置到最近角落" : "等待 Pinpoint 恢复";
+        }
         trimButtons.update(operatorGamepad.dpad_up, operatorGamepad.dpad_down,
                 operatorGamepad.dpad_left, operatorGamepad.dpad_right);
         int dx = trimButtons.getXDirection(), dy = trimButtons.getYDirection();
-        if (!resetPressed && (dx != 0 || dy != 0)) {
+        if (!resetPressed && !cornerResetPressed && (dx != 0 || dy != 0)) {
             boolean accepted = localization.adjustFieldPosition(
                     dx * PINPOINT_TRIM_STEP_IN, dy * PINPOINT_TRIM_STEP_IN);
             trimStatus = !accepted ? "未调整：定位无效" : localization.isFieldPoseValid()
@@ -134,7 +143,7 @@ public final class TeleopControlCommand extends CommandBase {
             blocker.setOpen(false); // 切换射击模式后重新按达速条件开挡板。
         }
         previousX = gamepad.x;
-        if (gamepad.y && !previousY) shovel.toggle();
+        // 主操 Y 暂时用于 OD 最近角落重置，暂停该键的铲子切换。
         previousY = gamepad.y;
         boolean pitchDown = operatorGamepad.left_bumper;
         boolean pitchUp = operatorGamepad.right_bumper;

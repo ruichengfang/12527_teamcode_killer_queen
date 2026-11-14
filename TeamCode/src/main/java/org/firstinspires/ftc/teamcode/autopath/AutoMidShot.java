@@ -84,6 +84,7 @@ public class AutoMidShot extends LinearOpMode {
             follower.setPose(start);
             while (opModeInInit() && !isStopRequested()) {
                 follower.update();
+
                 telemetry.addData("Pinpoint", pinpoint.getDeviceStatus());
                 telemetry.update();
                 idle();
@@ -97,6 +98,7 @@ public class AutoMidShot extends LinearOpMode {
             }
             follower.setPose(start);
             autoStarted = true;
+            intake.setIntakePower(ShootConstants.INTAKE_ACTIVE_POWER);
             Command routine = autoRoutine();
             CommandScheduler.getInstance().schedule(routine);
 
@@ -115,6 +117,8 @@ public class AutoMidShot extends LinearOpMode {
                     continue;
                 }
                 CommandScheduler.getInstance().run();
+                // 射击命令结束时会停 intake，这里每周期恢复为全速，保持自动全程吸入。
+                intake.setIntakePower(ShootConstants.INTAKE_ACTIVE_POWER);
                 if (pinpointFaults > 0) telemetry.addData("Pinpoint 异常次数 / 最近状态", "%d / %s", pinpointFaults, lastFault);
                 telemetry.addData("x / y (in)", "%.1f / %.1f", follower.pose().x(), follower.pose().y());
                 telemetry.addData("heading (deg)", "%.1f", Math.toDegrees(follower.pose().heading()));

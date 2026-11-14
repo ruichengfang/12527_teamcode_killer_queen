@@ -77,10 +77,10 @@ public class Teleop extends OpMode {
         telemetry.addLine("内置 IMU 无头平移（START 时车头为前方，按下左摇杆重设），右摇杆转向");
         telemetry.addLine("按 Option 将 Pinpoint 坐标设为 (72, 72 in, 180°)");
         telemetry.addLine("副操方向键：上/下 X ±1 in，右/左 Y ±1 in（每按一次）");
+        telemetry.addLine("主操 Y：OD 坐标重置到最近角落，保持车头方向");
         telemetry.addLine("副操 LB / RB：俯仰舵机位置 − / + 0.01");
         telemetry.addLine("按住 B 用 Pinpoint 控制转向，左摇杆仍可平移");
         telemetry.addLine("主操 X：切换贴墙射 / 云台自动瞄准");
-        telemetry.addLine("主操 Y：切换铲子上 / 下");
         telemetry.addLine("飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
         telemetry.addData("飞轮目标转速（两档共用）", "%.0f ticks/s", shooter.getShotTicksPerSecond());
         telemetry.addData("自瞄：只按 RT 远射角度", "servo %.2f", ShooterSubsystem.SERVO_LOW);
