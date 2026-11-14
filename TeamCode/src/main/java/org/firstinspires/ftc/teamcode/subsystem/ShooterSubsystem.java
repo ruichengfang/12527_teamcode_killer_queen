@@ -14,7 +14,8 @@ import org.firstinspires.ftc.teamcode.tuning.FlywheelTuning;
 
 /** 双电机飞轮，共用自动整定器的 PID + kS + kV 控制器。 */
 @Config
-public class ShooterSubsystem extends SubsystemBase {
+public class
+ShooterSubsystem extends SubsystemBase {
     /** 所有射击档位共用的飞轮目标速度，可在 Dashboard 调整。 */
     public static double SHOT_TICKS_PER_SECOND = 1580.0;
     public static final double SINGLE_BALL_RPM = SHOT_TICKS_PER_SECOND * 60.0 / 28.0;
@@ -34,9 +35,9 @@ public class ShooterSubsystem extends SubsystemBase {
     // 覆盖比赛目标 2000 TPS ≈ 4286 RPM。KF 就是 kV，只加一次。
     // 第一次（上限 0.65）：KP 0.000345783 / KI 0.000552456 / KS 0.084462589 / KF 0.000172892。
     // 旧值：KP 0.0060 / KI 0 / KD 0.00001 / KS 0 / KF 0.00020。
-    public static double KP = 0.000344490;
-    public static double KI = 0.000547963;
-    public static double KD = 0.0;
+    public static double KP = 0.00036;
+    public static double KI = 0;
+    public static double KD = 0.00001;
     public static double KS = 0.084063016;
     public static double KF = 0.000172245;
     public static double MAX_POWER = 1.0;

@@ -10,8 +10,8 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 @Config
 public final class ShovelSubsystem extends SubsystemBase {
     // 首次切换前不发送舵机位置。
-    public static double shovelUpPosition = 0.55;
-    public static double shovelDownPosition = 0.15;
+    public static double shovelUpPosition = 1;
+    public static double shovelDownPosition = 0.2;
 
     private final Servo flowerServo;
     private boolean hasTarget;

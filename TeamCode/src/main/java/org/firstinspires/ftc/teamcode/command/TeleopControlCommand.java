@@ -69,8 +69,7 @@ public final class TeleopControlCommand extends CommandBase {
         driveCommand = new DriveCommand(drive, localization,
                 () -> -gamepad.left_stick_y, () -> gamepad.left_stick_x,
                 () -> gamepad.right_stick_x);
-        shooterCommand = new ShooterCommand(shooter, () -> turretCentered,
-                () -> gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD, () -> deltaSeconds);
+        shooterCommand = new ShooterCommand(shooter, () -> deltaSeconds);
         intakeCommand = new IntakeCommand(intake, gamepad, () -> blocker.isOpen()
                 && blockerOpenTimer.seconds() >= ShooterSubsystem.TRANSIT_DELAY_SECONDS);
         aimTarget = new PinpointAimTarget(localization);
@@ -132,7 +131,7 @@ public final class TeleopControlCommand extends CommandBase {
         if (gamepad.x && !previousX) {
             turretCentered = !turretCentered;
             if (turretCentered) turret.setAimMode(false, false);
-            blocker.setOpen(false); // 切换转速时重新等待达速。
+            blocker.setOpen(false); // 切换射击模式后重新按达速条件开挡板。
         }
         previousX = gamepad.x;
         if (gamepad.y && !previousY) shovel.toggle();

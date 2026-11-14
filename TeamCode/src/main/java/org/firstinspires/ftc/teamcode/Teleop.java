@@ -82,7 +82,7 @@ public class Teleop extends OpMode {
         telemetry.addLine("主操 X：切换贴墙射 / 云台自动瞄准");
         telemetry.addLine("主操 Y：切换铲子上 / 下");
         telemetry.addLine("飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
-        telemetry.addData("自瞄模式飞轮转速", "%.0f TPS", ShooterSubsystem.SHOT_TICKS_PER_SECOND);
+        telemetry.addData("飞轮目标转速（两档共用）", "%.0f ticks/s", shooter.getShotTicksPerSecond());
         telemetry.addData("自瞄：只按 RT 远射角度", "servo %.2f", ShooterSubsystem.SERVO_LOW);
         telemetry.addData("自瞄：RB + RT 中射 / LB + RT 近射", "servo %.2f", ShooterSubsystem.SERVO_HIGH);
         telemetry.addLine("intake 待机 0.7；按住 LT 吸球，松开停止 transit");
@@ -129,6 +129,9 @@ public class Teleop extends OpMode {
         telemetry.addData("云台目标", controls.isTurretCentered() ? "中位锁定"
                 : !localization.isFieldPoseValid() ? "等待有效定位"
                 : !turret.hasValidAim() ? "无有效目标" : turret.isReachable() ? "在限位内" : "超出限位");
+        if (turret.hasValidAim()) {
+            telemetry.addData("Hive 瞄点 (in)", "(%.1f, %.1f)", turret.getAimTargetX(), turret.getAimTargetY());
+        }
         telemetry.addData("云台估计瞄准", controls.isTurretAimed() ? "是（无位置反馈）" : "否");
         telemetry.addData("挡板", "%s (%.2f)", blocker.isOpen() ? "开" : "关", blocker.getPosition());
         telemetry.addData("铲子", !shovel.isAvailable() ? "未配置 flowerServo"

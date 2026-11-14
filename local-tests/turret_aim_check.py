@@ -9,6 +9,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 JAVA_ROOT = ROOT / 'TeamCode/src/main/java/org/firstinspires/ftc/teamcode'
 STUBS = {
+    'com/acmerobotics/dashboard/config/Config.java':
+        'package com.acmerobotics.dashboard.config; public @interface Config {}',
     'com/arcrobotics/ftclib/command/SubsystemBase.java':
         'package com.arcrobotics.ftclib.command; public class SubsystemBase {}',
     'com/qualcomm/robotcore/hardware/Servo.java': '''
@@ -37,6 +39,7 @@ STUBS = {
     'TurretAimCheck.java': '''
         import com.qualcomm.robotcore.hardware.HardwareMap;
         import org.firstinspires.ftc.teamcode.subsystem.*;
+        import org.firstinspires.ftc.teamcode.shoot.ShotTarget;
         import org.firstinspires.ftc.teamcode.shoot.TurretAimFeedback;
         public class TurretAimCheck {
           static void check(boolean ok, String label) {
@@ -49,6 +52,7 @@ STUBS = {
             LocalizationSubsystem loc = new LocalizationSubsystem();
             TurretSubsystem turret = new TurretSubsystem(new HardwareMap(), false);
             check(turret.setAimMode(true, true), "enable aim");
+            loc.y = -6;
             loc.yaw = -135; turret.update(loc);
             near(turret.getCommandedRelativeDegrees(), 0, "center");
             loc.yaw = -175; turret.update(loc);
@@ -74,8 +78,34 @@ STUBS = {
             check(!turret.hasValidAim() && !turret.isReachable(), "invalid pose cannot aim");
             loc.valid = true; loc.yaw = -135; turret.update(loc);
             near(turret.getCommandedRelativeDegrees(), 0, "resume after valid pose");
-            loc.x = 60; loc.y = 60; turret.update(loc);
-            check(!turret.hasValidAim() && !turret.isReachable(), "undefined aim at target");
+
+            loc.x = 50; loc.y = 38; loc.yaw = 180; turret.update(loc);
+            near(turret.getAimTargetX(), 60, "Hive X");
+            near(turret.getAimTargetY(), 54, "low outer target extends coverage");
+            check(turret.isReachable() && Math.toDegrees(Math.atan2(22, 10)) > 60,
+                    "outer target reachable beyond center limit");
+            loc.yaw = -55; turret.update(loc);
+            near(turret.getAimTargetY(), 60, "fallback to the same Hive center");
+            check(turret.isReachable(), "center remains reachable");
+
+            loc.y = 106; loc.yaw = 180; turret.update(loc);
+            near(turret.getAimTargetY(), 90, "high outer target extends coverage");
+            check(turret.isReachable(), "mirrored outer target reachable");
+            loc.x = 0; loc.y = 72; turret.update(loc);
+            near(turret.getAimTargetY(), 90, "retain high Hive across center hysteresis");
+            loc.y = 70; turret.update(loc);
+            near(turret.getAimTargetY(), 54, "switch back to low Hive beyond hysteresis");
+            loc.x = 60; loc.y = 54; loc.yaw = -90; turret.update(loc);
+            near(turret.getAimTargetY(), 60, "fallback when directly at outer target");
+            check(turret.hasValidAim() && turret.isReachable(), "nearby outer target uses center");
+
+            ShotTarget chassis = new ShotTarget();
+            chassis.update(50, 38, Math.PI);
+            near(chassis.getTargetXInches(), 60, "chassis target X");
+            near(chassis.getTargetYInches(), 54, "chassis low outer target");
+            chassis.update(50, 106, Math.PI);
+            near(chassis.getTargetYInches(), 90, "chassis high outer target");
+
             TurretAimFeedback feedback = new TurretAimFeedback();
             check(!feedback.update(true, 10, 0), "not aimed immediately");
             check(!feedback.update(true, 11, .19), "wait for settling");
@@ -87,7 +117,7 @@ STUBS = {
             check(feedback.update(true, 12, .71), "pulse on reacquisition");
             check(!feedback.update(true, 16, .8) && !feedback.isAimed(), "movement restarts settling");
             check(feedback.update(true, 16, 1.01), "pulse after movement settles");
-            System.out.println("PASS: turret aim, limits, invalid pose and feedback transitions");
+            System.out.println("PASS: Hive aim points, turret coverage, center fallback, limits and feedback");
           }
         }''',
 }
@@ -98,7 +128,8 @@ with tempfile.TemporaryDirectory(prefix='turret-aim-') as temp:
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding='utf-8')
-    for name in ('NameConstants.java', 'subsystem/TurretSubsystem.java', 'shoot/TurretAimFeedback.java'):
+    for name in ('NameConstants.java', 'subsystem/TurretSubsystem.java', 'subsystem/BlockerSubsystem.java',
+                 'shoot/ShootConstants.java', 'shoot/ShotTarget.java', 'shoot/TurretAimFeedback.java'):
         target = root / 'org/firstinspires/ftc/teamcode' / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(JAVA_ROOT / name, target)

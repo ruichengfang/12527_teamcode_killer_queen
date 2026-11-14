@@ -43,8 +43,9 @@ STUBS = {
       }''',
     'org/firstinspires/ftc/teamcode/subsystem/ShooterSubsystem.java': '''
       package org.firstinspires.ftc.teamcode.subsystem;
-      public class ShooterSubsystem { public static double SHOT_TRANSIT_POWER=.8; public double target;
-        public double getShotRpm(){return 3385.714285714286;} public void setTargetRpm(double rpm){target=rpm;}
+      public class ShooterSubsystem { public static double SHOT_TRANSIT_POWER=.8;
+        public double target, shotRpm=3385.714285714286;
+        public double getShotRpm(){return shotRpm;} public void setTargetRpm(double rpm){target=rpm;}
         public void stop(){target=0;} public void update(double dt){} }''',
     'org/firstinspires/ftc/teamcode/subsystem/IntakeSubsystem.java': '''
       package org.firstinspires.ftc.teamcode.subsystem;
@@ -115,15 +116,13 @@ STUBS = {
           pitch.adjust(1); near(h.servo.position,.52,"RB pitch");
           PitchSubsystem absent=new PitchSubsystem(new HardwareMap()); absent.adjust(1);
           if(absent.isAvailable()) throw new AssertionError("missing pitch");
-          ShooterSubsystem shooter=new ShooterSubsystem(); boolean[] wall={false}, rt={false};
-          ShooterCommand cmd=new ShooterCommand(shooter,()->wall[0],()->rt[0],()->.02);
-          cmd.execute(); near(shooter.target,3385.714285714286,"auto aim speed");
-          wall[0]=true; cmd.execute(); near(shooter.target,2000,"wall standby");
-          rt[0]=true; cmd.execute(); near(shooter.target,3450,"wall shot");
-          rt[0]=false; cmd.execute(); near(shooter.target,2000,"release returns standby");
-          wall[0]=false; cmd.execute(); near(shooter.target,3385.714285714286,"restore aim speed");
+          ShooterSubsystem shooter=new ShooterSubsystem();
+          ShooterCommand cmd=new ShooterCommand(shooter,()->.02);
+          cmd.execute(); near(shooter.target,3385.714285714286,"shared flywheel speed");
+          shooter.shotRpm=3400;
+          cmd.execute(); near(shooter.target,3400,"updated shared flywheel speed");
           cmd.end(true); near(shooter.target,0,"stop flywheel");
-          System.out.println("PASS: pitch adjustments and shooter mode targets");
+          System.out.println("PASS: pitch adjustments and shared shooter target");
         }
       }''',
 }

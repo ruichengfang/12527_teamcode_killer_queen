@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.shoot;
 import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
 /**
- * 瞄点位置取 KQ 既有值（X=60 in，Y 按车位置在 60/84 in 之间切换，72±1 in 迟滞）；
+ * 底盘自瞄使用双 Hive 的外侧瞄点，按车身 Y 坐标切换并保留 72±1 in 滞回。
  * 偏航误差与距离严格按 OT VisionMath.coordinateYawErrorDegrees 计算，
  * 发射口偏角使用 OT 的 shooterYawDegrees = 180°（ShootConstants.SHOOTER_YAW_DEGREES），
  * 不使用 KQ 云台 MOUNT_OFFSET 或旧 AimAndShootCommand 的目标航向约定。

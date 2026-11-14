@@ -23,8 +23,12 @@ public class TurretSubsystem extends SubsystemBase {
     public static final double MOUNT_OFFSET_DEG = 180.0;
 
     public static final double AIM_POINT_X_IN = 60.0;
-    public static final double AIM_POINT_Y_HIGH_IN = 84.0;
-    public static final double AIM_POINT_Y_LOW_IN = 60.0;
+    private static final double HIVE_CENTER_Y_HIGH_IN = 84.0;
+    private static final double HIVE_CENTER_Y_LOW_IN = 60.0;
+    /** 沿 Y 轴远离场地中线的瞄点偏移，单位为英寸。 */
+    private static final double HIVE_OUTWARD_OFFSET_IN = 6.0;
+    public static final double AIM_POINT_Y_HIGH_IN = HIVE_CENTER_Y_HIGH_IN + HIVE_OUTWARD_OFFSET_IN;
+    public static final double AIM_POINT_Y_LOW_IN = HIVE_CENTER_Y_LOW_IN - HIVE_OUTWARD_OFFSET_IN;
     public static final double AIM_SWITCH_Y_IN = 72.0;
     public static final double AIM_SWITCH_HYSTERESIS_IN = 1.0;
     public static final double AIM_MIN_DISTANCE_IN = 0.5;
@@ -43,6 +47,7 @@ public class TurretSubsystem extends SubsystemBase {
     private double aimTargetDeg;
     private double aimTargetX = AIM_POINT_X_IN;
     private double aimTargetY = AIM_POINT_Y_LOW_IN;
+    private boolean highHiveSelected;
     private boolean hasValidAim;
     private double lastValidAimTargetDeg;
     private boolean reachable = true;
@@ -192,32 +197,52 @@ public class TurretSubsystem extends SubsystemBase {
     }
 
     private void updateAimPoint(double robotYIn) {
-        if (aimTargetY == AIM_POINT_Y_LOW_IN) {
-            if (robotYIn > AIM_SWITCH_Y_IN + AIM_SWITCH_HYSTERESIS_IN) {
-                aimTargetY = AIM_POINT_Y_HIGH_IN;
-            }
+        if (robotYIn > AIM_SWITCH_Y_IN + AIM_SWITCH_HYSTERESIS_IN) {
+            highHiveSelected = true;
         } else if (robotYIn < AIM_SWITCH_Y_IN - AIM_SWITCH_HYSTERESIS_IN) {
-            aimTargetY = AIM_POINT_Y_LOW_IN;
+            highHiveSelected = false;
         }
+        aimTargetY = highHiveSelected ? AIM_POINT_Y_HIGH_IN : AIM_POINT_Y_LOW_IN;
     }
 
     private void updateAutoAim(LocalizationSubsystem localization, double yawRad, double yawDeg) {
         double dx = aimTargetX - localization.getXIn();
         double dy = aimTargetY - localization.getYIn();
         aimDistance = Math.hypot(dx, dy);
-
-        if (aimDistance > AIM_MIN_DISTANCE_IN) {
-            aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
-            lastValidAimTargetDeg = aimTargetDeg;
-            hasValidAim = true;
-            targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
-        } else {
+        aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
+        // 外侧瞄点太近或超限时，检查同一个 Hive 的中心。
+        boolean outerTooClose = aimDistance <= AIM_MIN_DISTANCE_IN;
+        if (outerTooClose || Math.abs(getAimErrorDegrees(aimTargetDeg, yawRad)) > SOFT_LIMIT_DEG) {
+            double centerY = highHiveSelected ? HIVE_CENTER_Y_HIGH_IN : HIVE_CENTER_Y_LOW_IN;
+            double centerDy = centerY - localization.getYIn();
+            double centerDeg = Math.toDegrees(Math.atan2(centerDy, dx));
+            double centerDistance = Math.hypot(dx, centerDy);
+            if (centerDistance > AIM_MIN_DISTANCE_IN
+                    && (outerTooClose || Math.abs(getAimErrorDegrees(centerDeg, yawRad)) <= SOFT_LIMIT_DEG)) {
+                aimTargetY = centerY;
+                aimTargetDeg = centerDeg;
+                aimDistance = centerDistance;
+            }
+        }
+        if (aimDistance <= AIM_MIN_DISTANCE_IN) {
             hasValidAim = false;
             reachable = false;
             return;
         }
-
+        lastValidAimTargetDeg = aimTargetDeg;
+        hasValidAim = true;
+        targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
         updateServoTarget(yawRad, yawDeg);
+    }
+
+    private double getAimErrorDegrees(double fieldBearingDeg, double robotYawRad) {
+        double desiredHeadingDeg = normalizeDegrees(fieldBearingDeg + aimOffsetDeg);
+        return getYawErrorDegrees(desiredHeadingDeg, robotYawRad);
+    }
+
+    private static double getYawErrorDegrees(double desiredHeadingDeg, double robotYawRad) {
+        double targetRad = Math.toRadians(normalizeDegrees(desiredHeadingDeg + MOUNT_OFFSET_DEG));
+        return Math.toDegrees(normalizeRadians(targetRad - robotYawRad));
     }
 
     /** Field heading that points the centered launcher at the existing aim point. */
@@ -238,8 +263,7 @@ public class TurretSubsystem extends SubsystemBase {
 
     private void updateServoTarget(double yawRad, double yawDeg) {
         effectiveTargetDeg = normalizeDegrees(targetYawDeg + MOUNT_OFFSET_DEG);
-        double targetRad = Math.toRadians(effectiveTargetDeg);
-        yawErrorDeg = Math.toDegrees(normalizeRadians(targetRad - yawRad));
+        yawErrorDeg = getYawErrorDegrees(targetYawDeg, yawRad);
         if (Math.abs(yawErrorDeg) < DEADBAND_DEG) {
             yawErrorDeg = 0.0;
         }
