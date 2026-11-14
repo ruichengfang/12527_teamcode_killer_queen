@@ -21,8 +21,15 @@ public final class PitchSubsystem extends SubsystemBase {
     }
 
     public void adjust(int direction) {
-        if (pitchServo == null || !Double.isFinite(pitchStep) || pitchStep < 0) return;
-        position = Math.max(0, Math.min(1, position + direction * pitchStep));
+        if (!Double.isFinite(pitchStep) || pitchStep < 0) return;
+        setPosition(position + direction * pitchStep);
+    }
+
+    public void setPosition(double requestedPosition) {
+        if (pitchServo == null || !Double.isFinite(requestedPosition)) return;
+        double next = Math.max(0, Math.min(1, requestedPosition));
+        if (next == position) return;
+        position = next;
         pitchServo.setPosition(position);
     }
     public boolean isAvailable() { return pitchServo != null; }

@@ -30,6 +30,7 @@ STUBS = {
         package org.firstinspires.ftc.teamcode.subsystem;
         public class LocalizationSubsystem {
           public static final double START_HEADING_DEG = 0;
+          public static final double OPTION_RESET_X_IN = 72, OPTION_RESET_Y_IN = 72;
           public double x, y, yaw; public boolean valid = true;
           public double getYawRadians() { return Math.toRadians(yaw); }
           public double getXIn() { return x; } public double getYIn() { return y; }
@@ -39,6 +40,8 @@ STUBS = {
     'TurretAimCheck.java': '''
         import com.qualcomm.robotcore.hardware.HardwareMap;
         import org.firstinspires.ftc.teamcode.subsystem.*;
+        import org.firstinspires.ftc.teamcode.shoot.SegmentedAutoAim;
+        import org.firstinspires.ftc.teamcode.shoot.SegmentedAutoAimConstants;
         import org.firstinspires.ftc.teamcode.shoot.ShotTarget;
         import org.firstinspires.ftc.teamcode.shoot.TurretAimFeedback;
         public class TurretAimCheck {
@@ -106,6 +109,38 @@ STUBS = {
             chassis.update(50, 106, Math.PI);
             near(chassis.getTargetYInches(), 90, "chassis high outer target");
 
+            loc.x = 72; loc.y = 72; turret.update(loc);
+            check(SegmentedAutoAim.isInCenter(loc), "center is blocked independently of table");
+            loc.x = 54; loc.y = 90; turret.update(loc);
+            check(SegmentedAutoAim.isInCenter(loc), "center includes boundary");
+            loc.x = 53; loc.y = 90; turret.update(loc);
+            check(!SegmentedAutoAim.isInCenter(loc), "outside center boundary");
+            near(SegmentedAutoAim.select(loc, turret)[SegmentedAutoAim.DISTANCE], 20, "closest near row");
+            loc.x = 28; loc.y = 90; loc.yaw = 180; turret.update(loc);
+            near(SegmentedAutoAim.select(loc, turret)[SegmentedAutoAim.DISTANCE], 32, "middle distance row");
+            loc.x = 17; turret.update(loc);
+            near(SegmentedAutoAim.select(loc, turret)[SegmentedAutoAim.DISTANCE], 43, "wall distance row");
+            loc.yaw = 130; turret.update(loc);
+            double[] wideAngleProfile = SegmentedAutoAim.select(loc, turret);
+            near(wideAngleProfile[SegmentedAutoAim.DISTANCE], 43, "angle does not change row");
+            near(wideAngleProfile[SegmentedAutoAim.RPM], 3385.714285714286, "existing RPM default");
+            near(wideAngleProfile[SegmentedAutoAim.PITCH], .52, "existing pitch default");
+            loc.valid = false; turret.update(loc);
+            check(SegmentedAutoAim.select(loc, turret) == null, "invalid pose has no profile");
+
+            SegmentedAutoAimConstants.shotTable = new double[][] {
+                {80, 3900, .60}, {20, 2600, .45}, {50, 3200, .50}, {55, 9999}, null
+            };
+            double[] closest = SegmentedAutoAim.findClosestProfile(55);
+            near(closest[SegmentedAutoAim.RPM], 3200, "added row supplies RPM");
+            near(closest[SegmentedAutoAim.PITCH], .50, "same row supplies pitch");
+            near(SegmentedAutoAim.findClosestProfile(65)[SegmentedAutoAim.DISTANCE], 80, "tie keeps first row");
+            near(SegmentedAutoAim.findClosestProfile(2)[SegmentedAutoAim.DISTANCE], 20, "below table range");
+            near(SegmentedAutoAim.findClosestProfile(100)[SegmentedAutoAim.DISTANCE], 80, "above table range");
+            check(SegmentedAutoAim.findClosestProfile(Double.NaN) == null, "invalid distance");
+            SegmentedAutoAimConstants.shotTable = new double[0][];
+            check(SegmentedAutoAim.findClosestProfile(50) == null, "empty table has no profile");
+
             TurretAimFeedback feedback = new TurretAimFeedback();
             check(!feedback.update(true, 10, 0), "not aimed immediately");
             check(!feedback.update(true, 11, .19), "wait for settling");
@@ -117,7 +152,7 @@ STUBS = {
             check(feedback.update(true, 12, .71), "pulse on reacquisition");
             check(!feedback.update(true, 16, .8) && !feedback.isAimed(), "movement restarts settling");
             check(feedback.update(true, 16, 1.01), "pulse after movement settles");
-            System.out.println("PASS: Hive aim points, turret coverage, center fallback, limits and feedback");
+            System.out.println("PASS: Hive aim points, turret limits, distance table, center block and feedback");
           }
         }''',
 }
@@ -129,7 +164,8 @@ with tempfile.TemporaryDirectory(prefix='turret-aim-') as temp:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding='utf-8')
     for name in ('NameConstants.java', 'subsystem/TurretSubsystem.java', 'subsystem/BlockerSubsystem.java',
-                 'shoot/ShootConstants.java', 'shoot/ShotTarget.java', 'shoot/TurretAimFeedback.java'):
+                 'shoot/ShootConstants.java', 'shoot/ShotTarget.java', 'shoot/SegmentedAutoAim.java',
+                 'shoot/SegmentedAutoAimConstants.java', 'shoot/TurretAimFeedback.java'):
         target = root / 'org/firstinspires/ftc/teamcode' / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(JAVA_ROOT / name, target)

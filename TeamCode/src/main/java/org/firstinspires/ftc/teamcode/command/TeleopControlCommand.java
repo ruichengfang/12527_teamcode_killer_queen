@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import java.util.function.DoubleSupplier;
 import org.firstinspires.ftc.teamcode.shoot.AutoAimController;
 import org.firstinspires.ftc.teamcode.shoot.PinpointAimTarget;
+import org.firstinspires.ftc.teamcode.shoot.SegmentedAutoAim;
 import org.firstinspires.ftc.teamcode.shoot.ShootConstants;
 import org.firstinspires.ftc.teamcode.shoot.TurretAimFeedback;
 import org.firstinspires.ftc.teamcode.subsystem.BlockerSubsystem;
@@ -46,9 +47,15 @@ public final class TeleopControlCommand extends CommandBase {
     private boolean previousB;
     private boolean previousX;
     private boolean previousY;
+    private boolean previousA;
+    private boolean previousMode;
     private boolean previousOperatorLb, previousOperatorRb;
-    private boolean previousOperatorY;
     private boolean turretCentered;
+    private boolean segmentedAim;
+    private double manualPitch;
+    private double flywheelTargetRpm;
+    private boolean centerBlocked;
+    private double[] shotProfile;
     private boolean previousLeftStickButton;
     private boolean previousOptions;
     private boolean previousLeftBumper;
@@ -70,7 +77,7 @@ public final class TeleopControlCommand extends CommandBase {
         driveCommand = new DriveCommand(drive, localization,
                 () -> -gamepad.left_stick_y, () -> gamepad.left_stick_x,
                 () -> gamepad.right_stick_x);
-        shooterCommand = new ShooterCommand(shooter, () -> deltaSeconds);
+        shooterCommand = new ShooterCommand(shooter, () -> flywheelTargetRpm, () -> deltaSeconds);
         intakeCommand = new IntakeCommand(intake, gamepad, () -> blocker.isOpen()
                 && blockerOpenTimer.seconds() >= ShooterSubsystem.TRANSIT_DELAY_SECONDS);
         aimTarget = new PinpointAimTarget(localization);
@@ -88,10 +95,13 @@ public final class TeleopControlCommand extends CommandBase {
         previousB = gamepad.b;
         previousX = gamepad.x;
         previousY = gamepad.y;
+        previousA = gamepad.a;
+        previousMode = operatorGamepad.guide || operatorGamepad.ps;
         previousOperatorLb = operatorGamepad.left_bumper;
         previousOperatorRb = operatorGamepad.right_bumper;
-        previousOperatorY = gamepad.y;
         turretCentered = false;
+        segmentedAim = false;
+        manualPitch = pitch.getPosition();
         previousLeftStickButton = gamepad.left_stick_button;
         previousOptions = gamepad.options;
         trimButtons.update(operatorGamepad.dpad_up, operatorGamepad.dpad_down,
@@ -121,8 +131,8 @@ public final class TeleopControlCommand extends CommandBase {
         boolean resetPressed = gamepad.options && !previousOptions;
         if (resetPressed) localization.resetToFieldCenter();
         previousOptions = gamepad.options;
-        boolean cornerResetPressed = gamepad.y && !previousOperatorY;
-        previousOperatorY = gamepad.y;
+        boolean cornerResetPressed = !resetPressed && gamepad.y && !previousY;
+        previousY = gamepad.y;
         if (cornerResetPressed) {
             boolean accepted = localization.resetToNearestCorner();
             trimStatus = !accepted ? "未重置：定位无效" : localization.isFieldPoseValid()
@@ -137,18 +147,27 @@ public final class TeleopControlCommand extends CommandBase {
             trimStatus = !accepted ? "未调整：定位无效" : localization.isFieldPoseValid()
                     ? "已调整" : "等待 Pinpoint 恢复";
         }
-        if (gamepad.x && !previousX) {
+        boolean wasSegmentedAimActive = isSegmentedAimActive();
+        boolean turretModeChanged = gamepad.x && !previousX;
+        if (turretModeChanged) {
             turretCentered = !turretCentered;
             if (turretCentered) turret.setAimMode(false, false);
-            blocker.setOpen(false); // 切换射击模式后重新按达速条件开挡板。
         }
         previousX = gamepad.x;
-        // 主操 Y 暂时用于 OD 最近角落重置，暂停该键的铲子切换。
-        previousY = gamepad.y;
+        boolean modePressed = operatorGamepad.guide || operatorGamepad.ps;
+        boolean aimModeChanged = modePressed && !previousMode;
+        if (aimModeChanged) segmentedAim = !segmentedAim;
+        previousMode = modePressed;
+        if (gamepad.a && !previousA) shovel.toggle();
+        previousA = gamepad.a;
         boolean pitchDown = operatorGamepad.left_bumper;
         boolean pitchUp = operatorGamepad.right_bumper;
-        if (pitchDown && !previousOperatorLb && !pitchUp) pitch.adjust(-1);
-        if (pitchUp && !previousOperatorRb && !pitchDown) pitch.adjust(1);
+        if (!isSegmentedAimActive()) {
+            if (wasSegmentedAimActive) pitch.setPosition(manualPitch);
+            if (pitchDown && !previousOperatorLb && !pitchUp) pitch.adjust(-1);
+            if (pitchUp && !previousOperatorRb && !pitchDown) pitch.adjust(1);
+            manualPitch = pitch.getPosition();
+        }
         previousOperatorLb = pitchDown;
         previousOperatorRb = pitchUp;
         if (!turretCentered && !turret.isAimMode() && localization.isFieldPoseValid()) {
@@ -172,8 +191,20 @@ public final class TeleopControlCommand extends CommandBase {
         }
         previousLeftBumper = gamepad.left_bumper;
         updateAimButton();
+        // 中央禁射优先于选档，两个自瞄模式和贴墙模式均受此限制。
+        centerBlocked = SegmentedAutoAim.isInCenter(localization);
+        boolean useProfile = isSegmentedAimActive();
+        double previousRpm = flywheelTargetRpm;
+        double previousPitch = pitch.getPosition();
+        shotProfile = useProfile && !centerBlocked ? SegmentedAutoAim.select(localization, turret) : null;
+        flywheelTargetRpm = useProfile ? (shotProfile == null ? 0.0 : shotProfile[SegmentedAutoAim.RPM])
+                : shooter.getShotRpm();
+        if (shotProfile != null) pitch.setPosition(shotProfile[SegmentedAutoAim.PITCH]);
         shooterCommand.execute();
-        updateBlocker();
+        boolean profileChanged = useProfile
+                && (flywheelTargetRpm != previousRpm || pitch.getPosition() != previousPitch);
+        updateBlocker(!centerBlocked && (!useProfile || shotProfile != null),
+                turretModeChanged || aimModeChanged || profileChanged);
         blocker.flushOutput(); // 每周期写出，Dashboard 改挡板位置立即生效
         intakeCommand.execute();
         if (aiming) {
@@ -198,17 +229,28 @@ public final class TeleopControlCommand extends CommandBase {
 
     public boolean isTurretCentered() { return turretCentered; }
 
+    private boolean isSegmentedAimActive() { return segmentedAim && !turretCentered; }
+
+    public String getAimModeLabel() {
+        return turretCentered ? "贴墙锁中" : segmentedAim ? "分段自瞄" : "原版自瞄";
+    }
+
+    public String getShotProfileLabel() {
+        if (centerBlocked) return "中央禁射";
+        return isSegmentedAimActive() ? SegmentedAutoAim.getProfileLabel(shotProfile) : "—";
+    }
+
     public boolean isIntakeEnabled() { return intakeCommand.isIntakeEnabled(); }
 
     public String getTrimStatus() { return trimStatus; }
 
     /**
      * 按住 RT 且飞轮达速（ShooterSubsystem.isReady，OT 规则，不看自瞄）时打开挡板 blockerServo。
-     * 打开后在 RT 松开前保持打开（同 OT：开闸后掉速不中断），松开 RT 立即关闭。
+     * 进入禁射区、分段参数变化或松开 RT 时立即关闭。
      */
-    private void updateBlocker() {
+    private void updateBlocker(boolean canShoot, boolean restart) {
         boolean rtHeld = gamepad.right_trigger > ShootConstants.TRIGGER_THRESHOLD;
-        if (!rtHeld) {
+        if (!rtHeld || !canShoot || restart) {
             if (blocker.isOpen()) blocker.setOpen(false);
         } else if (!blocker.isOpen() && shooter.isReady()) {
             blocker.setOpen(true);

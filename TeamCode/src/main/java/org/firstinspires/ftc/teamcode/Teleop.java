@@ -81,6 +81,8 @@ public class Teleop extends OpMode {
         telemetry.addLine("副操 LB / RB：俯仰舵机位置 − / + 0.01");
         telemetry.addLine("按住 B 用 Pinpoint 控制转向，左摇杆仍可平移");
         telemetry.addLine("主操 X：切换贴墙射 / 云台自动瞄准");
+        telemetry.addLine("副操 MODE / PS：切换原版 / 分段自瞄");
+        telemetry.addLine("主操 A：切换铲子上 / 下");
         telemetry.addLine("飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
         telemetry.addData("飞轮目标转速（两档共用）", "%.0f ticks/s", shooter.getShotTicksPerSecond());
         telemetry.addData("自瞄：只按 RT 远射角度", "servo %.2f", ShooterSubsystem.SERVO_LOW);
@@ -126,11 +128,14 @@ public class Teleop extends OpMode {
 
         telemetry.addData("云台位置", "%.3f", turret.getPosition());
         telemetry.addData("云台模式", controls.isTurretCentered() ? "贴墙射：锁定中位" : "自动瞄准");
+        telemetry.addData("自瞄模式", controls.getAimModeLabel());
+        telemetry.addData("射击档", controls.getShotProfileLabel());
         telemetry.addData("云台目标", controls.isTurretCentered() ? "中位锁定"
                 : !localization.isFieldPoseValid() ? "等待有效定位"
                 : !turret.hasValidAim() ? "无有效目标" : turret.isReachable() ? "在限位内" : "超出限位");
-        if (turret.hasValidAim()) {
+        if (turret.isAimMode() && turret.hasValidAim()) {
             telemetry.addData("Hive 瞄点 (in)", "(%.1f, %.1f)", turret.getAimTargetX(), turret.getAimTargetY());
+            telemetry.addData("目标 Hive 水平距离 (in)", "%.1f", turret.getAimDistance());
         }
         telemetry.addData("云台估计瞄准", controls.isTurretAimed() ? "是（无位置反馈）" : "否");
         telemetry.addData("挡板", "%s (%.2f)", blocker.isOpen() ? "开" : "关", blocker.getPosition());

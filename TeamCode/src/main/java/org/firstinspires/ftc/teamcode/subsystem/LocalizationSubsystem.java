@@ -161,7 +161,7 @@ public class LocalizationSubsystem extends SubsystemBase {
         return true;
     }
 
-    /** 副操 Y：将 X/Y 重置到当前位置最近的场地角落，保持场地航向和驾驶员前方。 */
+    /** 主操 Y：将 X/Y 重置到当前位置最近的场地角落，保持场地航向和驾驶员前方。 */
     public boolean resetToNearestCorner() {
         if (!isFieldPoseValid()) return false;
         double targetXIn = xIn <= 72.0 ? 7.5 : 136.5;

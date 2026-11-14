@@ -84,6 +84,14 @@ public class PinpointResetCheck {
     near(loc.getXIn(),72,"reset x"); near(loc.getYIn(),72,"reset y");
     near(loc.getHeadingDeg(),180,"reset heading");
     near(Math.toDegrees(loc.getManualDriveHeadingRadians()),30,"preserves driver heading on retry");
+    od.pose=new Pose2D(DistanceUnit.INCH,30,110,AngleUnit.DEGREES,45);
+    loc.update();
+    check(loc.resetToNearestCorner(),"nearest corner accepted");
+    near(loc.getXIn(),7.5,"nearest corner low x");
+    near(loc.getYIn(),136.5,"nearest corner high y");
+    near(loc.getHeadingDeg(),45,"nearest corner preserves field heading");
+    near(Math.toDegrees(loc.getManualDriveHeadingRadians()),30,"nearest corner preserves driver heading");
+    check(loc.resetToFieldCenter(),"return to center for trim checks");
     loc.update();
     near(Math.toDegrees(loc.getManualDriveHeadingRadians()),30,"no repeated reference shift");
     PinpointTrimButtons buttons=new PinpointTrimButtons();
@@ -130,6 +138,7 @@ public class PinpointResetCheck {
     noOd.resetDriverHeading(); missing.get(IMU.class,NameConstants.IMU).yaw=45;
     near(Math.toDegrees(noOd.getManualDriveHeadingRadians()),45,"IMU driving without Pinpoint");
     check(!noOd.resetToFieldCenter(),"missing Pinpoint rejected");
+    check(!noOd.resetToNearestCorner(),"missing Pinpoint rejects corner reset");
     HardwareMap autoHw=new HardwareMap(); GoBildaPinpointDriver autoOd=new GoBildaPinpointDriver();
     autoHw.devices.put(NameConstants.IMU,new IMU()); autoHw.devices.put(NameConstants.PINPOINT,autoOd);
     LocalizationSubsystem autoLoc=new LocalizationSubsystem(autoHw,1,2,Math.toRadians(90));
