@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 public final class ShooterPitchTestTeleop extends OpMode {
     // 测试专用。手柄直接编辑当前档的参数，运行时保存在射击表中。
     private static final double RPM_STEP = 100.0;
+    private static final double FINE_RPM_STEP = 10.0;
     private static final double MIN_TARGET_RPM = 100.0;
     private static final double MAX_TARGET_RPM = 5000.0;
     private final ElapsedTime blockerOpenTimer = new ElapsedTime();
@@ -38,7 +39,8 @@ public final class ShooterPitchTestTeleop extends OpMode {
     private double[] shotProfile;
     private double requestedRpm;
     private double lastLoopTime;
-    private boolean previousUp, previousDown, previousLb, previousRb, previousLeftStick;
+    private boolean previousUp, previousDown, previousLeft, previousRight;
+    private boolean previousLb, previousRb, previousLeftStick, previousRightStick;
 
     @Override
     public void init() {
@@ -81,6 +83,8 @@ public final class ShooterPitchTestTeleop extends OpMode {
         lastLoopTime = now;
         localization.update();
         if (gamepad1.left_stick_button && !previousLeftStick) localization.resetDriverHeading();
+        // 测试专用。右摇杆按下沿用比赛手动的 OD 中心重置。
+        if (gamepad1.right_stick_button && !previousRightStick) localization.resetToFieldCenter();
         drive.execute();
 
         // 测试专用。固定使用分段自瞄，沿用比赛云台的 Hive 选择和限位。
@@ -105,11 +109,10 @@ public final class ShooterPitchTestTeleop extends OpMode {
             requestedRpm = 0.0;
             return;
         }
-        double tableRpm = shotProfile[SegmentedAutoAim.RPM];
-        if (gamepad1.dpad_up && !previousUp && !gamepad1.dpad_down) {
-            shotProfile[SegmentedAutoAim.RPM] = Range.clip(tableRpm + RPM_STEP, MIN_TARGET_RPM, MAX_TARGET_RPM);
-        } else if (gamepad1.dpad_down && !previousDown && !gamepad1.dpad_up) {
-            shotProfile[SegmentedAutoAim.RPM] = Range.clip(tableRpm - RPM_STEP, MIN_TARGET_RPM, MAX_TARGET_RPM);
+        double rpmAdjustment = getRpmAdjustment();
+        if (rpmAdjustment != 0.0) {
+            double tableRpm = shotProfile[SegmentedAutoAim.RPM];
+            shotProfile[SegmentedAutoAim.RPM] = Range.clip(tableRpm + rpmAdjustment, MIN_TARGET_RPM, MAX_TARGET_RPM);
         }
         requestedRpm = Math.min(shotProfile[SegmentedAutoAim.RPM], MAX_TARGET_RPM);
 
@@ -125,12 +128,24 @@ public final class ShooterPitchTestTeleop extends OpMode {
         pitch.setPosition(shotProfile[SegmentedAutoAim.PITCH]);
     }
 
+    /** 测试专用。上下粗调，左右微调，每次按下只改一次。 */
+    private double getRpmAdjustment() {
+        if (gamepad1.dpad_up && !previousUp && !gamepad1.dpad_down) return RPM_STEP;
+        if (gamepad1.dpad_down && !previousDown && !gamepad1.dpad_up) return -RPM_STEP;
+        if (gamepad1.dpad_left && !previousLeft && !gamepad1.dpad_right) return -FINE_RPM_STEP;
+        if (gamepad1.dpad_right && !previousRight && !gamepad1.dpad_left) return FINE_RPM_STEP;
+        return 0.0;
+    }
+
     private void rememberButtons() {
         previousUp = gamepad1.dpad_up;
         previousDown = gamepad1.dpad_down;
+        previousLeft = gamepad1.dpad_left;
+        previousRight = gamepad1.dpad_right;
         previousLb = gamepad1.left_bumper;
         previousRb = gamepad1.right_bumper;
         previousLeftStick = gamepad1.left_stick_button;
+        previousRightStick = gamepad1.right_stick_button;
     }
 
     /** 测试专用。RT 使用当前分段转速，中央禁射，达速后开挡板。 */
@@ -150,7 +165,8 @@ public final class ShooterPitchTestTeleop extends OpMode {
     /** 测试专用遥测。pitchServo 显示 0 到 1 的指令位置。 */
     private void showTelemetry() {
         telemetry.addLine("左摇杆平移，右摇杆转向，按下左摇杆重设前方");
-        telemetry.addLine("主操 LB / RB 改当前档 pitch，方向键上 / 下改当前档 RPM");
+        telemetry.addLine("按下右摇杆重置 OD 到 (72, 72 in, 180°)");
+        telemetry.addLine("LB / RB 调 pitch；方向键上 / 下 ±100 RPM，左 / 右 −/+10 RPM");
         telemetry.addLine("LT 吸球，按住 RT 升速并射击");
         telemetry.addData("OD 状态", localization.getPinpointStatus());
         if (localization.isFieldPoseValid()) {
@@ -159,8 +175,8 @@ public final class ShooterPitchTestTeleop extends OpMode {
         }
         telemetry.addData("自瞄模式", "分段自瞄");
         if (shotProfile != null) {
-            telemetry.addData("当前档 距离 / RPM / Pitch", "%.1f in / %.2f RPM / %.3f",
-                    shotProfile[SegmentedAutoAim.DISTANCE], shotProfile[SegmentedAutoAim.RPM],
+            telemetry.addData("当前档 距离 / RPM / Pitch", "%s / %.2f RPM / %.3f",
+                    SegmentedAutoAim.getProfileLabel(shotProfile), shotProfile[SegmentedAutoAim.RPM],
                     shotProfile[SegmentedAutoAim.PITCH]);
             telemetry.addData("测试目标 RPM", "%.2f", requestedRpm);
         } else {

@@ -9,9 +9,10 @@ import org.firstinspires.ftc.teamcode.NameConstants;
 /** 双舵机云台：常规回中、Pinpoint 自瞄、绝对朝向锁定。 */
 public class TurretSubsystem extends SubsystemBase {
     public static final boolean FIXED_POSITION_ENABLED = false;
-    public static final double INIT_POSITION = 0.5;
-    /** 云台相对中位左右各 60°，总行程 120°。 */
-    public static final double SOFT_LIMIT_DEG = 60.0;
+    /** 实车校准的云台中位，出球口沿车身中线朝车尾。 */
+    public static final double INIT_POSITION = 0.48;
+    /** 云台相对中位左右各 90°，总行程 180°。 */
+    public static final double SOFT_LIMIT_DEG = 90.0;
     public static final double MANUAL_STEP_DEG = 2.0;
 
     private static final double SERVO_RANGE_DEG = 300.0;
@@ -26,7 +27,7 @@ public class TurretSubsystem extends SubsystemBase {
     private static final double HIVE_CENTER_Y_HIGH_IN = 84.0;
     private static final double HIVE_CENTER_Y_LOW_IN = 60.0;
     /** 沿 Y 轴远离场地中线的瞄点偏移，单位为英寸。 */
-    private static final double HIVE_OUTWARD_OFFSET_IN = 6.0;
+    private static final double HIVE_OUTWARD_OFFSET_IN = 4.0;
     public static final double AIM_POINT_Y_HIGH_IN = HIVE_CENTER_Y_HIGH_IN + HIVE_OUTWARD_OFFSET_IN;
     public static final double AIM_POINT_Y_LOW_IN = HIVE_CENTER_Y_LOW_IN - HIVE_OUTWARD_OFFSET_IN;
     public static final double AIM_SWITCH_Y_IN = 72.0;
@@ -209,35 +210,16 @@ public class TurretSubsystem extends SubsystemBase {
         double dx = aimTargetX - localization.getXIn();
         double dy = aimTargetY - localization.getYIn();
         aimDistance = Math.hypot(dx, dy);
-        aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
-        // 外侧瞄点太近或超限时，检查同一个 Hive 的中心。
-        boolean outerTooClose = aimDistance <= AIM_MIN_DISTANCE_IN;
-        if (outerTooClose || Math.abs(getAimErrorDegrees(aimTargetDeg, yawRad)) > SOFT_LIMIT_DEG) {
-            double centerY = highHiveSelected ? HIVE_CENTER_Y_HIGH_IN : HIVE_CENTER_Y_LOW_IN;
-            double centerDy = centerY - localization.getYIn();
-            double centerDeg = Math.toDegrees(Math.atan2(centerDy, dx));
-            double centerDistance = Math.hypot(dx, centerDy);
-            if (centerDistance > AIM_MIN_DISTANCE_IN
-                    && (outerTooClose || Math.abs(getAimErrorDegrees(centerDeg, yawRad)) <= SOFT_LIMIT_DEG)) {
-                aimTargetY = centerY;
-                aimTargetDeg = centerDeg;
-                aimDistance = centerDistance;
-            }
-        }
         if (aimDistance <= AIM_MIN_DISTANCE_IN) {
             hasValidAim = false;
             reachable = false;
             return;
         }
+        aimTargetDeg = Math.toDegrees(Math.atan2(dy, dx));
         lastValidAimTargetDeg = aimTargetDeg;
         hasValidAim = true;
         targetYawDeg = normalizeDegrees(aimTargetDeg + aimOffsetDeg);
         updateServoTarget(yawRad, yawDeg);
-    }
-
-    private double getAimErrorDegrees(double fieldBearingDeg, double robotYawRad) {
-        double desiredHeadingDeg = normalizeDegrees(fieldBearingDeg + aimOffsetDeg);
-        return getYawErrorDegrees(desiredHeadingDeg, robotYawRad);
     }
 
     private static double getYawErrorDegrees(double desiredHeadingDeg, double robotYawRad) {
@@ -270,7 +252,7 @@ public class TurretSubsystem extends SubsystemBase {
 
         double relativeDeg = TURRET_SIGN * yawErrorDeg / MECHANICAL_RATIO;
         rawPosition = INIT_POSITION + relativeDeg / SERVO_RANGE_DEG;
-        reachable = Math.abs(rawPosition - INIT_POSITION) <= SOFT_HALF_POSITION;
+        reachable = Math.abs(yawErrorDeg) <= SOFT_LIMIT_DEG;
         position = clamp(rawPosition,
                 INIT_POSITION - SOFT_HALF_POSITION,
                 INIT_POSITION + SOFT_HALF_POSITION);
