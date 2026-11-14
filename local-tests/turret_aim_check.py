@@ -37,6 +37,11 @@ STUBS = {
           public boolean isPinpointReady() { return true; }
           public boolean isFieldPoseValid() { return valid; }
         }''',
+    'org/firstinspires/ftc/teamcode/subsystem/ShooterSubsystem.java': '''
+        package org.firstinspires.ftc.teamcode.subsystem;
+        public class ShooterSubsystem {
+          public static final double TARGET_CHANGE_RESET_RPM = 30.0 * 60.0 / 28.0;
+        }''',
     'TurretAimCheck.java': '''
         import com.qualcomm.robotcore.hardware.HardwareMap;
         import org.firstinspires.ftc.teamcode.subsystem.*;
@@ -133,40 +138,44 @@ STUBS = {
             check(SegmentedAutoAim.isInCenter(loc), "center includes boundary");
             loc.x = 53; loc.y = 90; turret.update(loc);
             check(!SegmentedAutoAim.isInCenter(loc), "outside center boundary");
-            double[][] intervals = {{0, 26, 3000, .50}, {26, 37.5, 3200, .51}, {37.5, -1, 3400, .52}};
-            SegmentedAutoAimConstants.shotTable = intervals;
-            check(SegmentedAutoAim.select(loc, turret) == intervals[0], "near interval");
-            loc.x = 28; loc.y = 90; loc.yaw = 180; turret.update(loc);
-            check(SegmentedAutoAim.select(loc, turret) == intervals[1], "middle interval");
-            loc.x = 17; turret.update(loc);
-            check(SegmentedAutoAim.select(loc, turret) == intervals[2], "wall distance interval");
+            checkProfile(SegmentedAutoAim.select(loc, turret), 3305, .49, "below measured range");
+            loc.x = 15; loc.y = 88; loc.yaw = 180; turret.update(loc);
+            double pitchAt45 = .50 + ((45 - 42.6) / (47.3 - 42.6)) * .03;
+            double rpmAt45 = 3365 + ((45 - 42.6) / (47.3 - 42.6)) * 10;
+            checkProfile(SegmentedAutoAim.select(loc, turret), rpmAt45, pitchAt45, "interpolated pose");
             loc.yaw = 130; turret.update(loc);
-            double[] wideAngleProfile = SegmentedAutoAim.select(loc, turret);
-            check(wideAngleProfile == intervals[2], "angle does not change row");
-            near(wideAngleProfile[SegmentedAutoAim.RPM], 3400, "far RPM from fixture");
-            near(wideAngleProfile[SegmentedAutoAim.PITCH], .52, "far pitch from fixture");
+            checkProfile(SegmentedAutoAim.select(loc, turret), rpmAt45, pitchAt45, "angle alone does not change output");
             loc.valid = false; turret.update(loc);
             check(SegmentedAutoAim.select(loc, turret) == null, "invalid pose has no profile");
 
-            check(SegmentedAutoAim.findProfileForDistance(0) == intervals[0], "zero belongs to first interval");
-            check(SegmentedAutoAim.findProfileForDistance(26) == intervals[0], "26 belongs to near interval");
-            check(SegmentedAutoAim.findProfileForDistance(26.01) == intervals[1], "just above 26");
-            check(SegmentedAutoAim.findProfileForDistance(37.5) == intervals[1], "37.5 belongs to middle interval");
-            check(SegmentedAutoAim.findProfileForDistance(37.51) == intervals[2], "just above 37.5");
-            check(SegmentedAutoAim.findProfileForDistance(100) == intervals[2], "unbounded final interval");
+            for (double[] sample : new double[][] {
+                {32, 3305, .49}, {37.2, 3315, .50}, {42.6, 3365, .50},
+                {47.3, 3375, .53}, {51.3, 3475, .54}, {62.5, 3575, .53}
+            }) {
+                double[] exact = SegmentedAutoAim.findProfileForDistance(sample[0]);
+                check(exact[SegmentedAutoAim.RPM] == sample[1] && exact[SegmentedAutoAim.PITCH] == sample[2],
+                        "exact measured output at " + sample[0]);
+            }
+            checkProfile(SegmentedAutoAim.findProfileForDistance(34.6), 3310, .495, "near interpolation");
+            checkProfile(SegmentedAutoAim.findProfileForDistance(39.9), 3340, .50, "flat pitch interpolation");
+            checkProfile(SegmentedAutoAim.findProfileForDistance(56.9), 3525, .535, "decreasing pitch interpolation");
+            checkProfile(SegmentedAutoAim.findProfileForDistance(100), 3575, .53, "above measured range");
 
             SegmentedAutoAimConstants.shotTable = new double[][] {
-                {60, 90, 3900, .60}, {10, 30, 2600, .45}, {40, 60, 3200, .50}, {55, 9999}, null
+                {60, 3900, .60}, {10, 2600, .45}, {40, 3200, .50}, {55, 9999}, null
             };
-            double[] profile = SegmentedAutoAim.findProfileForDistance(55);
-            near(profile[SegmentedAutoAim.RPM], 3200, "interval supplies RPM");
-            near(profile[SegmentedAutoAim.PITCH], .50, "same row supplies pitch");
-            check(SegmentedAutoAim.findProfileForDistance(35) == null, "gap has no profile");
-            check(SegmentedAutoAim.findProfileForDistance(2) == null, "below table range");
-            check(SegmentedAutoAim.findProfileForDistance(100) == null, "above bounded table");
+            checkProfile(SegmentedAutoAim.findProfileForDistance(50), 3550, .55, "unordered table, invalid row skipped");
+            double[] edited = SegmentedAutoAim.findNearestCalibrationPoint(49);
+            check(edited == SegmentedAutoAimConstants.shotTable[2], "edit references the nearest measured row");
+            edited[SegmentedAutoAim.RPM] += 10;
+            checkProfile(SegmentedAutoAim.findProfileForDistance(40), 3210, .50, "point edit affects exact output");
+            checkProfile(SegmentedAutoAim.findProfileForDistance(50), 3555, .55, "point edit affects interpolation");
             check(SegmentedAutoAim.findProfileForDistance(Double.NaN) == null, "invalid distance");
             SegmentedAutoAimConstants.shotTable = new double[0][];
             check(SegmentedAutoAim.findProfileForDistance(50) == null, "empty table has no profile");
+            check(!SegmentedAutoAim.hasFeedTargetChanged(3306, .491, 3305, .49), "small pose jitter preserves feed");
+            check(SegmentedAutoAim.hasFeedTargetChanged(3375, .49, 3305, .49), "large speed change rechecks feed");
+            check(SegmentedAutoAim.hasFeedTargetChanged(3305, .52, 3305, .49), "large pitch change rechecks feed");
 
             TurretAimFeedback feedback = new TurretAimFeedback();
             check(!feedback.update(true, 10, 0), "not aimed immediately");
@@ -179,7 +188,12 @@ STUBS = {
             check(feedback.update(true, 12, .71), "pulse on reacquisition");
             check(!feedback.update(true, 16, .8) && !feedback.isAimed(), "movement restarts settling");
             check(feedback.update(true, 16, 1.01), "pulse after movement settles");
-            System.out.println("PASS: Hive aim points, turret limits, distance table, center block and feedback");
+            System.out.println("PASS: Hive aim, limits, six calibration points, interpolation and feed thresholds");
+          }
+
+          static void checkProfile(double[] profile, double rpm, double pitch, String label) {
+            near(profile[SegmentedAutoAim.RPM], rpm, label + " RPM");
+            near(profile[SegmentedAutoAim.PITCH], pitch, label + " pitch");
           }
         }''',
 }

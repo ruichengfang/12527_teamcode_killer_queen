@@ -80,11 +80,10 @@ public class Teleop extends OpMode {
         telemetry.addLine("主操 Y：OD 坐标重置到最近角落，保持车头方向");
         telemetry.addLine("副操 LB / RB：俯仰舵机位置 − / + 0.01");
         telemetry.addLine("按住 B 用 Pinpoint 控制转向，左摇杆仍可平移");
-        telemetry.addLine("主操 X：切换贴墙射 / 云台自动瞄准");
-        telemetry.addLine("副操 MODE / PS：切换原版 / 分段自瞄");
+        telemetry.addLine("主操 X：分段自瞄（默认）→ 普通自瞄 → 贴墙锁中");
         telemetry.addLine("主操 A：切换铲子上 / 下");
         telemetry.addLine("飞轮常转；按住 RT 射击，挡板打开后 transit 送料");
-        telemetry.addData("飞轮目标转速（两档共用）", "%.0f ticks/s", shooter.getShotTicksPerSecond());
+        telemetry.addData("飞轮基准转速", "%.0f ticks/s", shooter.getShotTicksPerSecond());
         telemetry.addData("自瞄：只按 RT 远射角度", "servo %.2f", ShooterSubsystem.SERVO_LOW);
         telemetry.addData("自瞄：RB + RT 中射 / LB + RT 近射", "servo %.2f", ShooterSubsystem.SERVO_HIGH);
         telemetry.addLine("intake 待机 0.7；按住 LT 吸球，松开停止 transit");

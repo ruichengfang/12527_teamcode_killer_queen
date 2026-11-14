@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 /** 测试专用手动程序，用来边驾驶边测试飞轮转速与俯仰位置。 */
 @TeleOp(name = "KQ Shooter + Pitch Test", group = "Test")
 public final class ShooterPitchTestTeleop extends OpMode {
-    // 测试专用。手柄直接编辑当前档的参数，运行时保存在射击表中。
+    // 测试专用。手柄编辑最近的实测点，运行时保存在射击表中。
     private static final double RPM_STEP = 100.0;
     private static final double FINE_RPM_STEP = 10.0;
     private static final double MIN_TARGET_RPM = 100.0;
@@ -37,7 +37,9 @@ public final class ShooterPitchTestTeleop extends OpMode {
     private TurretSubsystem turret;
     private boolean centerBlocked;
     private double[] shotProfile;
+    private double[] calibrationPoint;
     private double requestedRpm;
+    private double feedReferenceRpm, feedReferencePitch;
     private double lastLoopTime;
     private boolean previousUp, previousDown, previousLeft, previousRight;
     private boolean previousLb, previousRb, previousLeftStick, previousRightStick;
@@ -72,6 +74,7 @@ public final class ShooterPitchTestTeleop extends OpMode {
         rememberButtons();
         lastLoopTime = getRuntime();
         localization.resetDriverHeading();
+        shooter.start();
         drive.initialize();
         intake.initialize();
     }
@@ -92,40 +95,43 @@ public final class ShooterPitchTestTeleop extends OpMode {
         turret.update(localization);
         boolean shooting = gamepad1.right_trigger > ShootConstants.TRIGGER_THRESHOLD;
         centerBlocked = SegmentedAutoAim.isInCenter(localization);
-        shotProfile = centerBlocked ? null : SegmentedAutoAim.select(localization, turret);
-        double previousRpm = requestedRpm;
-        double previousPitch = pitch.getPosition();
-        updateTestSettings(shooting);
-        updateShot(shooting, requestedRpm != previousRpm
-                || pitch.getPosition() != previousPitch, dt);
+        double aimDistance = !centerBlocked && localization.isFieldPoseValid() && turret.hasValidAim()
+                ? turret.getAimDistance() : Double.NaN;
+        calibrationPoint = SegmentedAutoAim.findNearestCalibrationPoint(aimDistance);
+        boolean settingsEdited = updateTestSettings(shooting);
+        shotProfile = SegmentedAutoAim.findProfileForDistance(aimDistance);
+        requestedRpm = shotProfile == null ? shooter.getShotRpm()
+                : Math.min(shotProfile[SegmentedAutoAim.RPM], MAX_TARGET_RPM);
+        if (shotProfile != null) pitch.setPosition(shotProfile[SegmentedAutoAim.PITCH]);
+        boolean targetChanged = blocker.isOpen() && SegmentedAutoAim.hasFeedTargetChanged(
+                requestedRpm, pitch.getPosition(), feedReferenceRpm, feedReferencePitch);
+        updateShot(shooting, settingsEdited || targetChanged, dt);
         intake.execute();
         rememberButtons();
         showTelemetry();
     }
 
-    /** 测试专用。直接改当前距离档的 RPM 和 pitch，按住 RT 时保持 pitch。 */
-    private void updateTestSettings(boolean shooting) {
-        if (shotProfile == null) {
-            requestedRpm = 0.0;
-            return;
-        }
+    /** 测试专用。直接编辑最近实测点，按住 RT 时跳过手动 pitch 微调。 */
+    private boolean updateTestSettings(boolean shooting) {
+        if (calibrationPoint == null) return false;
+        double previousRpm = calibrationPoint[SegmentedAutoAim.RPM];
+        double previousPitch = calibrationPoint[SegmentedAutoAim.PITCH];
         double rpmAdjustment = getRpmAdjustment();
         if (rpmAdjustment != 0.0) {
-            double tableRpm = shotProfile[SegmentedAutoAim.RPM];
-            shotProfile[SegmentedAutoAim.RPM] = Range.clip(tableRpm + rpmAdjustment, MIN_TARGET_RPM, MAX_TARGET_RPM);
+            calibrationPoint[SegmentedAutoAim.RPM] = Range.clip(
+                    previousRpm + rpmAdjustment, MIN_TARGET_RPM, MAX_TARGET_RPM);
         }
-        requestedRpm = Math.min(shotProfile[SegmentedAutoAim.RPM], MAX_TARGET_RPM);
 
         double pitchStep = PitchSubsystem.pitchStep;
         if (!shooting && Double.isFinite(pitchStep) && pitchStep >= 0.0) {
-            double tablePitch = shotProfile[SegmentedAutoAim.PITCH];
             if (gamepad1.left_bumper && !previousLb && !gamepad1.right_bumper) {
-                shotProfile[SegmentedAutoAim.PITCH] = Range.clip(tablePitch - pitchStep, 0.0, 1.0);
+                calibrationPoint[SegmentedAutoAim.PITCH] = Range.clip(previousPitch - pitchStep, 0.0, 1.0);
             } else if (gamepad1.right_bumper && !previousRb && !gamepad1.left_bumper) {
-                shotProfile[SegmentedAutoAim.PITCH] = Range.clip(tablePitch + pitchStep, 0.0, 1.0);
+                calibrationPoint[SegmentedAutoAim.PITCH] = Range.clip(previousPitch + pitchStep, 0.0, 1.0);
             }
         }
-        pitch.setPosition(shotProfile[SegmentedAutoAim.PITCH]);
+        return calibrationPoint[SegmentedAutoAim.RPM] != previousRpm
+                || calibrationPoint[SegmentedAutoAim.PITCH] != previousPitch;
     }
 
     /** 测试专用。上下粗调，左右微调，每次按下只改一次。 */
@@ -148,16 +154,17 @@ public final class ShooterPitchTestTeleop extends OpMode {
         previousRightStick = gamepad1.right_stick_button;
     }
 
-    /** 测试专用。RT 使用当前分段转速，中央禁射，达速后开挡板。 */
+    /** 测试专用。飞轮常转，RT 只在有有效插值参数且达速时开挡板。 */
     private void updateShot(boolean shooting, boolean targetChanged, double dt) {
-        boolean runFlywheel = shooting && requestedRpm > 0.0;
-        shooter.setTargetRpm(runFlywheel ? requestedRpm : 0.0);
+        shooter.setTargetRpm(requestedRpm);
         shooter.update(dt);
-        if (targetChanged || !runFlywheel || !shooter.getControlFault().isEmpty()) {
+        if (targetChanged || !shooting || shotProfile == null || !shooter.getControlFault().isEmpty()) {
             if (blocker.isOpen()) blocker.setOpen(false);
         } else if (!blocker.isOpen() && shooter.isReady()) {
             blocker.setOpen(true);
             blockerOpenTimer.reset();
+            feedReferenceRpm = requestedRpm;
+            feedReferencePitch = pitch.getPosition();
         }
         blocker.flushOutput();
     }
@@ -166,8 +173,8 @@ public final class ShooterPitchTestTeleop extends OpMode {
     private void showTelemetry() {
         telemetry.addLine("左摇杆平移，右摇杆转向，按下左摇杆重设前方");
         telemetry.addLine("按下右摇杆重置 OD 到 (72, 72 in, 180°)");
-        telemetry.addLine("LB / RB 调 pitch；方向键上 / 下 ±100 RPM，左 / 右 −/+10 RPM");
-        telemetry.addLine("LT 吸球，按住 RT 升速并射击");
+        telemetry.addLine("调最近实测点：LB / RB 调 pitch，上 / 下 ±100 RPM，左 / 右 −/+10 RPM");
+        telemetry.addLine("START 后飞轮常转，LT 吸球，按住 RT 达速后射击");
         telemetry.addData("OD 状态", localization.getPinpointStatus());
         if (localization.isFieldPoseValid()) {
             telemetry.addData("OD X / Y (in)", "%.2f / %.2f", localization.getXIn(), localization.getYIn());
@@ -175,12 +182,17 @@ public final class ShooterPitchTestTeleop extends OpMode {
         }
         telemetry.addData("自瞄模式", "分段自瞄");
         if (shotProfile != null) {
-            telemetry.addData("当前档 距离 / RPM / Pitch", "%s / %.2f RPM / %.3f",
-                    SegmentedAutoAim.getProfileLabel(shotProfile), shotProfile[SegmentedAutoAim.RPM],
+            telemetry.addData("插值距离 / RPM / Pitch", "%s / %.2f RPM / %.3f",
+                    SegmentedAutoAim.getProfileLabel(shotProfile), requestedRpm,
                     shotProfile[SegmentedAutoAim.PITCH]);
-            telemetry.addData("测试目标 RPM", "%.2f", requestedRpm);
         } else {
             telemetry.addData("射击档", centerBlocked ? "中央禁射" : SegmentedAutoAim.getProfileLabel(null));
+            telemetry.addData("飞轮预热目标 RPM", "%.2f", requestedRpm);
+        }
+        if (calibrationPoint != null) {
+            telemetry.addData("编辑点 距离 / RPM / Pitch", "%s / %.2f RPM / %.3f",
+                    SegmentedAutoAim.getProfileLabel(calibrationPoint), calibrationPoint[SegmentedAutoAim.RPM],
+                    calibrationPoint[SegmentedAutoAim.PITCH]);
         }
         if (turret.isAimMode() && turret.hasValidAim()) {
             telemetry.addData("目标 Hive 水平距离 (in)", "%.1f", turret.getAimDistance());

@@ -2,15 +2,15 @@ package org.firstinspires.ftc.teamcode.shoot;
 
 import java.util.Locale;
 import org.firstinspires.ftc.teamcode.subsystem.LocalizationSubsystem;
+import org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystem.TurretSubsystem;
 
-/** 从射击表中选出包含当前距离的区间。 */
+/** 在相邻实测点之间分别线性插值飞轮转速和 pitch。 */
 public final class SegmentedAutoAim {
-    private static final int MIN_DISTANCE = 0;
-    private static final int MAX_DISTANCE = 1;
-    public static final int RPM = 2;
-    public static final int PITCH = 3;
-    private static final double UNBOUNDED = -1.0;
+    private static final int DISTANCE = 0;
+    public static final int RPM = 1;
+    public static final int PITCH = 2;
+    private static final double PITCH_CHANGE_TO_REOPEN = 0.01;
 
     private SegmentedAutoAim() {}
 
@@ -28,26 +28,53 @@ public final class SegmentedAutoAim {
     }
 
     public static double[] findProfileForDistance(double distanceIn) {
+        double[][] points = findSurroundingPoints(distanceIn);
+        if (points == null) return null;
+        double[] lower = points[0];
+        double[] upper = points[1];
+        if (lower == upper) return new double[]{distanceIn, lower[RPM], lower[PITCH]};
+
+        double fraction = (distanceIn - lower[DISTANCE]) / (upper[DISTANCE] - lower[DISTANCE]);
+        return new double[]{distanceIn,
+                lower[RPM] + fraction * (upper[RPM] - lower[RPM]),
+                lower[PITCH] + fraction * (upper[PITCH] - lower[PITCH])};
+    }
+
+    /** 测试手动编辑最近的实测行，实际射击再按当前距离重新插值。 */
+    public static double[] findNearestCalibrationPoint(double distanceIn) {
+        double[][] points = findSurroundingPoints(distanceIn);
+        if (points == null) return null;
+        double[] lower = points[0];
+        double[] upper = points[1];
+        return distanceIn - lower[DISTANCE] <= upper[DISTANCE] - distanceIn ? lower : upper;
+    }
+
+    private static double[][] findSurroundingPoints(double distanceIn) {
         double[][] table = SegmentedAutoAimConstants.shotTable;
         if (!Double.isFinite(distanceIn) || distanceIn < 0.0 || table == null) return null;
 
+        double[] lower = null;
+        double[] upper = null;
         for (double[] row : table) {
-            if (row == null || row.length != 4
+            if (row == null || row.length != 3
+                    || !Double.isFinite(row[DISTANCE]) || row[DISTANCE] < 0.0
                     || !Double.isFinite(row[RPM]) || row[RPM] <= 0.0
                     || !Double.isFinite(row[PITCH]) || row[PITCH] < 0.0 || row[PITCH] > 1.0) continue;
-            double min = row[MIN_DISTANCE];
-            double max = row[MAX_DISTANCE];
-            if (!Double.isFinite(min) || min < 0.0 || !Double.isFinite(max)) continue;
-            if ((min == 0.0 || distanceIn > min) && (max == UNBOUNDED || distanceIn <= max)) return row;
+            double sampleDistance = row[DISTANCE];
+            if (sampleDistance <= distanceIn && (lower == null || sampleDistance > lower[DISTANCE])) lower = row;
+            if (sampleDistance >= distanceIn && (upper == null || sampleDistance < upper[DISTANCE])) upper = row;
         }
-        return null;
+        if (lower == null && upper == null) return null;
+        return new double[][]{lower == null ? upper : lower, upper == null ? lower : upper};
+    }
+
+    /** 以开挡板时的参数为基准，过滤距离测量的小幅波动。 */
+    public static boolean hasFeedTargetChanged(double rpm, double pitch, double openedRpm, double openedPitch) {
+        return Math.abs(rpm - openedRpm) > ShooterSubsystem.TARGET_CHANGE_RESET_RPM
+                || Math.abs(pitch - openedPitch) > PITCH_CHANGE_TO_REOPEN;
     }
 
     public static String getProfileLabel(double[] profile) {
-        if (profile == null) return "无可用射击档";
-        double min = profile[MIN_DISTANCE];
-        double max = profile[MAX_DISTANCE];
-        if (max == UNBOUNDED) return String.format(Locale.US, ">%.1f in", min);
-        return String.format(Locale.US, "%s%.1f, %.1f] in", min == 0.0 ? "[" : "(", min, max);
+        return profile == null ? "无可用射击参数" : String.format(Locale.US, "%.1f in", profile[DISTANCE]);
     }
 }

@@ -8,11 +8,14 @@ public final class SegmentedAutoAimConstants {
     // 中央禁射区独立于射击参数表。
     public static double centerHalfWidthIn = 18.0;
 
-    // 每行依次是距离下限、距离上限（in）、飞轮转速（RPM）、pitchServo 位置。
-    // 区间下限不包含（0 除外）、上限包含。上限填 -1 表示无上限。
+    // 每行依次是到 Hive 瞄点的距离（in）、飞轮转速（RPM）、pitchServo 位置。
     public static double[][] shotTable = {
-            {29, 35, 3185.714285714286, 0.51},//边界29~35-3185-0.51
-            {35, -1, 3285.714285714286, 0.5},//35~-3285-0.5
+            {32.0, 3305.0, 0.49},
+            {37.2, 3315.0, 0.50},
+            {42.6, 3365.0, 0.50},
+            {47.3, 3375.0, 0.53},
+            {51.3, 3475.0, 0.54},
+            {62.5, 3575.0, 0.53},
     };
 
     private SegmentedAutoAimConstants() {}
