@@ -12,12 +12,20 @@ public final class IntakeCommand extends CommandBase {
     private final IntakeSubsystem intake;
     private final Gamepad gamepad;
     private final BooleanSupplier blockerOpen;
+    private final BooleanSupplier reverseRequested;
     private boolean intakeEnabled;
 
     public IntakeCommand(IntakeSubsystem intake, Gamepad gamepad, BooleanSupplier blockerOpen) {
+        this(intake, gamepad, blockerOpen, () -> gamepad.left_bumper || gamepad.dpad_down);
+    }
+
+    /** 调试 OpMode 可重新分配退球键，以复用相同的吸球和射击送料流程。 */
+    public IntakeCommand(IntakeSubsystem intake, Gamepad gamepad, BooleanSupplier blockerOpen,
+                         BooleanSupplier reverseRequested) {
         this.intake = intake;
         this.gamepad = gamepad;
         this.blockerOpen = blockerOpen;
+        this.reverseRequested = reverseRequested;
         addRequirements(intake);
     }
 
@@ -37,7 +45,7 @@ public final class IntakeCommand extends CommandBase {
             intakePower = feeding ? ShootConstants.INTAKE_ACTIVE_POWER : 0.0;
             transitPower = feeding
                     ? org.firstinspires.ftc.teamcode.subsystem.ShooterSubsystem.SHOT_TRANSIT_POWER : 0.0;
-        } else if (gamepad.left_bumper || gamepad.dpad_down) {
+        } else if (reverseRequested.getAsBoolean()) {
             intakePower = ShootConstants.INTAKE_JAM_POWER;
         } else if (intakeEnabled) {
             intakePower = ShootConstants.INTAKE_ACTIVE_POWER;
